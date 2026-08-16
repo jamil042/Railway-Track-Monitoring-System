@@ -91,3 +91,50 @@ export interface DashboardStats {
   underMaintenance: number;
   systemStatus: 'operational' | 'degraded' | 'critical';
 }
+
+export type DeviceType =
+  | 'esp32_sensor_node'
+  | 'raspberry_pi_vision'
+  | 'lora_transmitter'
+  | 'lora_receiver_station'
+  | 'train_unit';
+
+export type DeviceStatus = 'online' | 'offline' | 'degraded' | 'maintenance';
+
+export interface Device {
+  id: number;
+  stationId: string;
+  trackId?: string;
+  deviceType: DeviceType;
+  name: string;
+  status: DeviceStatus;
+  firmwareVersion?: string;
+  location?: string;
+  installedAt?: string;
+  lastHeartbeat?: string;
+}
+
+export type SensorType = 'ir_beam' | 'ultrasonic' | 'vibration' | 'temperature' | 'camera';
+
+export interface SensorReading {
+  id: number;
+  deviceId: number;
+  trackId?: string;
+  sensorType: SensorType;
+  value: number;
+  unit?: string;
+  recordedAt: string;
+}
+
+export interface AlertLog {
+  id: number;
+  faultId: string;
+  deviceId?: number;
+  destination: 'station_display' | 'train_unit';
+  channel: string;
+  message: string;
+  severity: FaultSeverity;
+  sentAt: string;
+  acknowledgedAt?: string;
+  acknowledgedBy?: number;
+}

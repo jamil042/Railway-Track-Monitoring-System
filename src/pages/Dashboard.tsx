@@ -4,16 +4,15 @@ import {
 } from 'recharts';
 import StatCard from '../components/StatCard';
 import StatusBadge from '../components/StatusBadge';
-import { DASHBOARD_STATS, FAULT_TREND_DATA, FAULT_TYPE_DATA, MOCK_FAULTS } from '../data/mockData';
-
-const RECENT = MOCK_FAULTS.slice(0, 5);
+import { useData } from '../contexts/DataContext';
 
 const TOOLTIP_STYLE = {
   backgroundColor: '#fff', border: '1px solid #E2E8F0', borderRadius: '12px', color: '#0F172A', fontSize: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
 };
 
 export default function Dashboard() {
-  const s = DASHBOARD_STATS;
+  const { stats: s, faultTrend, faultTypeData, faults } = useData();
+  const RECENT = faults.slice(0, 5);
   return (
     <div className="space-y-5">
       <div>
@@ -41,7 +40,7 @@ export default function Dashboard() {
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
           <h3 className="text-sm font-semibold text-slate-800 mb-4">Fault Detection Trend — Last 7 Days</h3>
           <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={FAULT_TREND_DATA}>
+            <AreaChart data={faultTrend}>
               <defs>
                 <linearGradient id="faults" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#DC2626" stopOpacity={0.15} />
@@ -68,14 +67,14 @@ export default function Dashboard() {
           <div className="flex items-center gap-4">
             <ResponsiveContainer width="100%" height={180}>
               <PieChart>
-                <Pie data={FAULT_TYPE_DATA} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={3} dataKey="value">
-                  {FAULT_TYPE_DATA.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                <Pie data={faultTypeData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={3} dataKey="value">
+                  {faultTypeData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                 </Pie>
                 <Tooltip contentStyle={TOOLTIP_STYLE} />
               </PieChart>
             </ResponsiveContainer>
             <div className="space-y-2 min-w-max">
-              {FAULT_TYPE_DATA.map(d => (
+              {faultTypeData.map(d => (
                 <div key={d.name} className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: d.color }} />
                   <span className="text-xs text-slate-500">{d.name}</span>

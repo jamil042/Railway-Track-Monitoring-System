@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { MOCK_FAULTS } from '../data/mockData';
+import { useData } from '../contexts/DataContext';
 import type { Fault, FaultStatus } from '../types';
 import StatusBadge from '../components/StatusBadge';
 import Modal from '../components/Modal';
@@ -10,19 +10,20 @@ import { MdVisibility, MdWarning, MdAccessTime, MdPsychology, MdSensors } from '
 const PER_PAGE = 6;
 
 export default function Alerts() {
+  const { faults } = useData();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<FaultStatus | 'all'>('all');
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Fault | null>(null);
 
-  const filtered = useMemo(() => MOCK_FAULTS.filter(f => {
+  const filtered = useMemo(() => faults.filter(f => {
     const matchSearch = search === '' ||
       f.id.toLowerCase().includes(search.toLowerCase()) ||
       f.stationName.toLowerCase().includes(search.toLowerCase()) ||
       f.faultType.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === 'all' || f.status === statusFilter;
     return matchSearch && matchStatus;
-  }), [search, statusFilter]);
+  }), [search, statusFilter, faults]);
 
   const total = Math.ceil(filtered.length / PER_PAGE);
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);

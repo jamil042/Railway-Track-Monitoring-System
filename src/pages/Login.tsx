@@ -23,8 +23,7 @@ export default function Login() {
     e.preventDefault();
     setError('');
     setLoading(true);
-    await new Promise(r => setTimeout(r, 600));
-    const ok = login(form.username, form.password);
+    const ok = await login(form.username, form.password);
     setLoading(false);
     if (ok) navigate('/dashboard');
     else setError('Invalid username or password. Please try again.');
