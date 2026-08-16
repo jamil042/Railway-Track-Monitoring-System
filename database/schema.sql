@@ -38,8 +38,10 @@ CREATE TABLE tracks (
     -- Authoritative history lives in sensor_readings and is kept in sync by
     -- the trg_track_latest_reading trigger.
     temperature         REAL,                              -- latest cached °C
-    vibration           REAL,                              -- latest cached mm/s
-    displacement        REAL,                              -- latest cached mm
+    vibration           REAL,                              -- latest cached count/500ms
+    displacement        REAL,                              -- latest cached cm (ultrasonic)
+    baseline_distance   REAL NOT NULL DEFAULT 20,          -- normal idle ultrasonic distance (cm)
+    baseline_vibration  REAL NOT NULL DEFAULT 0,           -- normal idle vibration count
     readings_updated_at TEXT                               -- ISO-8601 of cached snapshot
 );
 
@@ -184,10 +186,14 @@ CREATE INDEX idx_notifications_user ON notifications (user_id, read);
 -- Trigger: keep tracks' cached latest readings in sync with the telemetry stream,
 -- and derive sensor_health + status from the latest live readings.
 --
--- Status thresholds (calibrate against real healthy-track data):
---   vibration  (SW-420 pulses per 500ms window): >=3 warning, >=8 critical
---   ultrasonic (HC-SR04 cm deviation from ULTRASONIC_NORMAL_CM=20):
---              >= ULTRASONIC_WARNING_DEV(3)cm warning, >= ULTRASONIC_EMERGENCY_DEV(6)cm critical
+-- Status is computed as DEVATION from each track's own baseline (the idle,
+-- healthy reading), not from hardcoded absolute values. So a sensor that sits
+-- at ~158cm when empty gets its own 158cm baseline; a deviation (obstacle,
+-- heavy vibration) then moves the status.
+--
+-- Thresholds:
+--   vibration deviation  (count/500ms): >= VIB_WARN(3) warning, >= VIB_CRIT(8) critical
+--   ultrasonic deviation (cm):          >= US_WARN(3)  warning, >= US_CRIT(6)  critical
 -- ----------------------------------------------------------------------------
 
 CREATE TRIGGER trg_track_latest_reading
@@ -202,19 +208,22 @@ BEGIN
            readings_updated_at = NEW.recorded_at
      WHERE id = NEW.track_id;
 
-    -- Recompute health + status from the (now updated) cached live values.
-    -- Health starts at 100 and loses points for each threshold crossed.
+    -- Recompute health + status from the (now updated) cached live values,
+    -- comparing to each track's own baseline. Health starts at 100 and
+    -- loses points for each threshold crossed.
     UPDATE tracks
        SET sensor_health = CAST(MAX(
-                100
-                - (CASE WHEN vibration >=  3 THEN 30 ELSE 0 END)
-                - (CASE WHEN vibration >=  8 THEN 30 ELSE 0 END)
-                - (CASE WHEN ABS(displacement - 20.0) >=  3 THEN 20 ELSE 0 END)
-                - (CASE WHEN ABS(displacement - 20.0) >=  6 THEN 20 ELSE 0 END),
+                 100
+                - (CASE WHEN ABS(vibration - baseline_vibration) >=  3 THEN 30 ELSE 0 END)
+                - (CASE WHEN ABS(vibration - baseline_vibration) >=  8 THEN 30 ELSE 0 END)
+                - (CASE WHEN ABS(displacement - baseline_distance) >=  3 THEN 20 ELSE 0 END)
+                - (CASE WHEN ABS(displacement - baseline_distance) >=  6 THEN 20 ELSE 0 END),
                 0) AS INTEGER),
            status = CASE
-                        WHEN vibration >= 8 OR ABS(displacement - 20.0) >= 6 THEN 'critical'
-                        WHEN vibration >= 3 OR ABS(displacement - 20.0) >= 3 THEN 'warning'
+                        WHEN ABS(vibration - baseline_vibration) >= 8
+                          OR ABS(displacement - baseline_distance) >= 6 THEN 'critical'
+                        WHEN ABS(vibration - baseline_vibration) >= 3
+                          OR ABS(displacement - baseline_distance) >= 3 THEN 'warning'
                         ELSE 'safe'
                     END
      WHERE id = NEW.track_id;
