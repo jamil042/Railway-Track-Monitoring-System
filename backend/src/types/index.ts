@@ -35,6 +35,8 @@ export interface Track {
   temperature?: number
   vibration?: number
   displacement?: number
+  baselineDistance?: number
+  baselineVibration?: number
 }
 
 export interface SensorValues {

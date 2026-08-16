@@ -5,7 +5,8 @@ import type { Track } from '../types/index.js'
 const SELECT = `
   SELECT id, station_id AS stationId, station_name AS stationName, status,
          sensor_health AS sensorHealth, readings_updated_at AS lastUpdated, image_url AS imageUrl,
-         temperature, vibration, displacement
+         temperature, vibration, displacement,
+         baseline_distance AS baselineDistance, baseline_vibration AS baselineVibration
   FROM v_track_with_station`
 
 export function listTracks(): Track[] {

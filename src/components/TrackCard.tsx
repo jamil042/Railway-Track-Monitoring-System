@@ -1,14 +1,19 @@
 import type { Track } from '../types';
 import StatusBadge from './StatusBadge';
-import { MdSensors, MdAccessTime, MdThermostat, MdSpeed } from 'react-icons/md';
+import { MdSensors, MdAccessTime, MdSpeed, MdWarning, MdCheck } from 'react-icons/md';
 
 interface TrackCardProps {
   track: Track;
 }
 
+const OBSTACLE_MARGIN = 12; // ultrasonic baseline থেকে কত cm কমলে obstacle ধরা হবে
+
 export default function TrackCard({ track }: TrackCardProps) {
   const healthColor = track.sensorHealth >= 85 ? 'text-green-600' : track.sensorHealth >= 60 ? 'text-yellow-600' : 'text-red-600';
   const healthBg = track.sensorHealth >= 85 ? 'bg-green-500' : track.sensorHealth >= 60 ? 'bg-yellow-500' : 'bg-red-500';
+
+  const hasBaseline = track.baselineDistance && track.baselineDistance > 0;
+  const obstacle = !!hasBaseline && (track.displacement ?? 0) < (track.baselineDistance ?? 0) - OBSTACLE_MARGIN;
 
   const fmt = (iso: string) => {
     const d = new Date(iso);
@@ -41,10 +46,14 @@ export default function TrackCard({ track }: TrackCardProps) {
         </div>
 
         <div className="grid grid-cols-3 gap-2 mb-3">
-          <div className="bg-orange-50 border border-orange-100 rounded-lg p-2 text-center">
-            <div className="flex items-center justify-center text-orange-500 mb-0.5"><MdThermostat className="text-sm" /></div>
-            <p className="text-xs font-semibold text-slate-800">{track.temperature}°C</p>
-            <p className="text-[10px] text-slate-400">Temp</p>
+          <div className={`border rounded-lg p-2 text-center ${obstacle ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'}`}>
+            <div className={`flex items-center justify-center mb-0.5 ${obstacle ? 'text-red-500' : 'text-emerald-500'}`}>
+              {obstacle ? <MdWarning className="text-sm" /> : <MdCheck className="text-sm" />}
+            </div>
+            <p className={`text-xs font-semibold ${obstacle ? 'text-red-700' : 'text-emerald-700'}`}>
+              {obstacle ? 'Obstacle' : 'Clear'}
+            </p>
+            <p className="text-[10px] text-slate-400">Ultrasonic</p>
           </div>
           <div className="bg-purple-50 border border-purple-100 rounded-lg p-2 text-center">
             <div className="flex items-center justify-center text-purple-500 mb-0.5"><MdSpeed className="text-sm" /></div>
@@ -53,8 +62,8 @@ export default function TrackCard({ track }: TrackCardProps) {
           </div>
           <div className="bg-blue-50 border border-blue-100 rounded-lg p-2 text-center">
             <div className="flex items-center justify-center text-blue-500 mb-0.5"><MdSensors className="text-sm" /></div>
-            <p className="text-xs font-semibold text-slate-800">{track.displacement}mm</p>
-            <p className="text-[10px] text-slate-400">Disp.</p>
+            <p className="text-xs font-semibold text-slate-800">{track.displacement}cm</p>
+            <p className="text-[10px] text-slate-400">Distance</p>
           </div>
         </div>
 
