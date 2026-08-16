@@ -1,31 +1,30 @@
 import { useState } from 'react';
-import { MOCK_MAINTENANCE } from '../data/mockData';
-import type { MaintenanceTask } from '../types';
+import { useData } from '../contexts/DataContext';
 import StatusBadge from '../components/StatusBadge';
 import { MdBuild, MdPlayArrow, MdEdit, MdCheckCircle, MdPerson, MdGroup } from 'react-icons/md';
 
 export default function Maintenance() {
-  const [tasks, setTasks] = useState<MaintenanceTask[]>(MOCK_MAINTENANCE);
+  const { tasks, updateTask } = useData();
+  const [working, setWorking] = useState<string | null>(null);
 
-  const startRepair = (id: string) => {
-    setTasks(prev => prev.map(t => t.id === id
-      ? { ...t, status: 'in_progress', progress: 5, startTime: new Date().toISOString() }
-      : t
-    ));
+  const startRepair = async (id: string) => {
+    setWorking(id);
+    await updateTask(id, { status: 'in_progress', progress: 5, startTime: new Date().toISOString() });
+    setWorking(null);
   };
 
-  const updateProgress = (id: string) => {
-    setTasks(prev => prev.map(t => t.id === id && t.progress < 95
-      ? { ...t, progress: Math.min(t.progress + 20, 90) }
-      : t
-    ));
+  const updateProgress = async (id: string) => {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+    setWorking(id);
+    await updateTask(id, { progress: Math.min(task.progress + 20, 90) });
+    setWorking(null);
   };
 
-  const markFixed = (id: string) => {
-    setTasks(prev => prev.map(t => t.id === id
-      ? { ...t, status: 'completed', progress: 100, completionTime: new Date().toISOString() }
-      : t
-    ));
+  const markFixed = async (id: string) => {
+    setWorking(id);
+    await updateTask(id, { status: 'completed', progress: 100, completionTime: new Date().toISOString() });
+    setWorking(null);
   };
 
   const progressColor = (p: number) => p >= 80 ? 'bg-green-500' : p >= 40 ? 'bg-blue-500' : 'bg-yellow-500';
@@ -105,16 +104,16 @@ export default function Maintenance() {
                   <td className="px-4 py-4">
                     <div className="flex items-center gap-1.5">
                       {t.status === 'pending' && (
-                        <button onClick={() => startRepair(t.id)} className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs rounded-lg transition-colors whitespace-nowrap font-medium">
+                        <button onClick={() => startRepair(t.id)} disabled={working === t.id} className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs rounded-lg transition-colors whitespace-nowrap font-medium disabled:opacity-50">
                           <MdPlayArrow className="text-sm" /> Start
                         </button>
                       )}
                       {t.status === 'in_progress' && (
                         <>
-                          <button onClick={() => updateProgress(t.id)} className="flex items-center gap-1 px-2.5 py-1.5 bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 text-yellow-700 text-xs rounded-lg transition-colors whitespace-nowrap font-medium">
+                          <button onClick={() => updateProgress(t.id)} disabled={working === t.id} className="flex items-center gap-1 px-2.5 py-1.5 bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 text-yellow-700 text-xs rounded-lg transition-colors whitespace-nowrap font-medium disabled:opacity-50">
                             <MdEdit className="text-sm" /> Update
                           </button>
-                          <button onClick={() => markFixed(t.id)} className="flex items-center gap-1 px-2.5 py-1.5 bg-green-50 hover:bg-green-100 border border-green-200 text-green-700 text-xs rounded-lg transition-colors whitespace-nowrap font-medium">
+                          <button onClick={() => markFixed(t.id)} disabled={working === t.id} className="flex items-center gap-1 px-2.5 py-1.5 bg-green-50 hover:bg-green-100 border border-green-200 text-green-700 text-xs rounded-lg transition-colors whitespace-nowrap font-medium disabled:opacity-50">
                             <MdCheckCircle className="text-sm" /> Fixed
                           </button>
                         </>

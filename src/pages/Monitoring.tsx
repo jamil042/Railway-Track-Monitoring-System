@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { MOCK_TRACKS } from '../data/mockData';
+import { useData } from '../contexts/DataContext';
 import TrackCard from '../components/TrackCard';
 import SearchBar from '../components/SearchBar';
 import Pagination from '../components/Pagination';
@@ -16,28 +16,29 @@ const STATUS_FILTERS: { label: string; value: TrackStatus | 'all'; icon: typeof 
 ];
 
 export default function Monitoring() {
+  const { tracks } = useData();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<TrackStatus | 'all'>('all');
   const [page, setPage] = useState(1);
 
   const filtered = useMemo(() => {
-    return MOCK_TRACKS.filter(t => {
+    return tracks.filter(t => {
       const matchSearch = search === '' ||
         t.id.toLowerCase().includes(search.toLowerCase()) ||
         t.stationName.toLowerCase().includes(search.toLowerCase());
       const matchStatus = statusFilter === 'all' || t.status === statusFilter;
       return matchSearch && matchStatus;
     });
-  }, [search, statusFilter]);
+  }, [search, statusFilter, tracks]);
 
   const totalPages = Math.ceil(filtered.length / PER_PAGE);
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const counts = {
-    all: MOCK_TRACKS.length,
-    safe: MOCK_TRACKS.filter(t => t.status === 'safe').length,
-    warning: MOCK_TRACKS.filter(t => t.status === 'warning').length,
-    critical: MOCK_TRACKS.filter(t => t.status === 'critical').length,
+    all: tracks.length,
+    safe: tracks.filter(t => t.status === 'safe').length,
+    warning: tracks.filter(t => t.status === 'warning').length,
+    critical: tracks.filter(t => t.status === 'critical').length,
   };
 
   const handleFilterChange = (v: TrackStatus | 'all') => { setStatusFilter(v); setPage(1); };

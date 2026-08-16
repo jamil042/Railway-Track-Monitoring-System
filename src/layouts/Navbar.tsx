@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { MdMenu, MdNotifications, MdSearch, MdCircle } from 'react-icons/md';
 import { useAuth } from '../contexts/AuthContext';
-import { MOCK_NOTIFICATIONS } from '../data/mockData';
-import type { Notification } from '../types';
+import { useData } from '../contexts/DataContext';
 
 interface NavbarProps {
   onMenuToggle: () => void;
@@ -10,9 +9,9 @@ interface NavbarProps {
 
 export default function Navbar({ onMenuToggle }: NavbarProps) {
   const { user } = useAuth();
+  const { notifications, markNotificationRead } = useData();
   const [time, setTime] = useState(new Date());
   const [showNotif, setShowNotif] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS);
 
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
@@ -20,10 +19,6 @@ export default function Navbar({ onMenuToggle }: NavbarProps) {
   }, []);
 
   const unread = notifications.filter(n => !n.read).length;
-
-  const markRead = (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-  };
 
   const typeColor: Record<string, string> = {
     critical: 'text-red-500',
@@ -87,7 +82,7 @@ export default function Navbar({ onMenuToggle }: NavbarProps) {
                 {notifications.map(n => (
                   <div
                     key={n.id}
-                    onClick={() => markRead(n.id)}
+                    onClick={() => markNotificationRead(n.id)}
                     className={`px-4 py-3 cursor-pointer hover:bg-slate-50 transition-colors ${!n.read ? 'bg-blue-50/60' : ''}`}
                   >
                     <div className="flex items-start gap-2">

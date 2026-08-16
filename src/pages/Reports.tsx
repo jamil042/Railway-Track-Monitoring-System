@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
-import { MONTHLY_STATS, FAULT_TYPE_DATA, STATION_FAULT_DATA, MOCK_FAULTS } from '../data/mockData';
-import { MdDownload, MdTableChart, MdPictureAsPdf, MdBarChart, MdWarning, MdCheckCircle, MdTrendingUp } from 'react-icons/md';
+import { useData } from '../contexts/DataContext';
+import { MdTableChart, MdPictureAsPdf, MdBarChart, MdWarning, MdCheckCircle, MdTrendingUp } from 'react-icons/md';
 
 type Period = 'daily' | 'weekly' | 'monthly';
 
@@ -29,18 +29,22 @@ const WEEKLY_DATA = [
 ];
 
 export default function Reports() {
+  const { monthlyStats, faultTypeData, stationFaultData, faults } = useData();
   const [period, setPeriod] = useState<Period>('monthly');
 
-  const chartData = period === 'daily' ? DAILY_DATA : period === 'weekly' ? WEEKLY_DATA : MONTHLY_STATS;
+  type ChartRow = { date?: string; month?: string; faults: number; fixed: number; maintenance: number };
+  const chartData = (
+    period === 'daily' ? DAILY_DATA : period === 'weekly' ? WEEKLY_DATA : monthlyStats
+  ) as ChartRow[];
   const xKey = period === 'daily' ? 'date' : period === 'weekly' ? 'date' : 'month';
 
-  const totalFaults = MOCK_FAULTS.length;
-  const activeFaults = MOCK_FAULTS.filter(f => f.status === 'active').length;
-  const fixedFaults = MOCK_FAULTS.filter(f => f.status === 'fixed').length;
-  const underMaint = MOCK_FAULTS.filter(f => f.status === 'under_maintenance').length;
+  const totalFaults = faults.length;
+  const activeFaults = faults.filter(f => f.status === 'active').length;
+  const fixedFaults = faults.filter(f => f.status === 'fixed').length;
+  const underMaint = faults.filter(f => f.status === 'under_maintenance').length;
 
-  const mostFaultyStation = STATION_FAULT_DATA[0];
-  const mostCommonFault = [...FAULT_TYPE_DATA].sort((a, b) => b.value - a.value)[0];
+  const mostFaultyStation = stationFaultData[0];
+  const mostCommonFault = [...faultTypeData].sort((a, b) => b.value - a.value)[0];
 
   return (
     <div className="space-y-5">
@@ -120,7 +124,7 @@ export default function Reports() {
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
           <h3 className="text-sm font-semibold text-slate-800 mb-4">Faults by Station</h3>
           <div className="space-y-3">
-            {STATION_FAULT_DATA.map((d, i) => (
+            {stationFaultData.map((d, i) => (
               <div key={d.name}>
                 <div className="flex items-center justify-between text-xs mb-1">
                   <span className="text-slate-700 font-medium">{d.name}</span>
@@ -130,7 +134,7 @@ export default function Reports() {
                   <div
                     className="h-full rounded-full transition-all"
                     style={{
-                      width: `${(d.faults / STATION_FAULT_DATA[0].faults) * 100}%`,
+                      width: `${(d.faults / stationFaultData[0].faults) * 100}%`,
                       backgroundColor: ['#DC2626', '#F59E0B', '#F59E0B', '#3B82F6', '#3B82F6', '#94A3B8'][i],
                     }}
                   />
@@ -143,7 +147,7 @@ export default function Reports() {
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
           <h3 className="text-sm font-semibold text-slate-800 mb-4">Fault Type Breakdown</h3>
           <div className="space-y-3">
-            {FAULT_TYPE_DATA.map(d => (
+            {faultTypeData.map(d => (
               <div key={d.name}>
                 <div className="flex items-center justify-between text-xs mb-1">
                   <span className="flex items-center gap-1.5">

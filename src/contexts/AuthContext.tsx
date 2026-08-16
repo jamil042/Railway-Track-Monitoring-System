@@ -1,10 +1,11 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, type ReactNode } from 'react';
 import type { User } from '../types';
-import { MOCK_USERS } from '../data/mockData';
+import { authApi } from '../api';
+import { clearAuth, getStoredAuth, storeAuth } from '../api/client';
 
 interface AuthContextType {
   user: User | null;
-  login: (username: string, password: string) => boolean;
+  login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   isAuthenticated: boolean;
 }
@@ -12,24 +13,22 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
-    const stored = localStorage.getItem('rfd_user');
-    return stored ? JSON.parse(stored) : null;
-  });
+  const [user, setUser] = useState<User | null>(() => (getStoredAuth()?.user as User | undefined) ?? null);
 
-  const login = (username: string, password: string): boolean => {
-    const found = MOCK_USERS.find(u => u.username === username && u.password === password);
-    if (found) {
-      setUser(found);
-      localStorage.setItem('rfd_user', JSON.stringify(found));
+  const login = async (username: string, password: string): Promise<boolean> => {
+    try {
+      const { token, user } = await authApi.login(username, password);
+      storeAuth({ token, user });
+      setUser(user);
       return true;
+    } catch {
+      return false;
     }
-    return false;
   };
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('rfd_user');
+    clearAuth();
   };
 
   return (
