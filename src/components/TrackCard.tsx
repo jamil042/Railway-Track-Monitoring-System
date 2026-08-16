@@ -6,7 +6,7 @@ interface TrackCardProps {
   track: Track;
 }
 
-const OBSTACLE_MARGIN = 12; // ultrasonic baseline থেকে কত cm কমলে obstacle ধরা হবে
+const OBSTACLE_MARGIN = 50; // ultrasonic baseline-এর থেকে এত cm কমে গেলে obstacle ধরা হবে
 
 export default function TrackCard({ track }: TrackCardProps) {
   const healthColor = track.sensorHealth >= 85 ? 'text-green-600' : track.sensorHealth >= 60 ? 'text-yellow-600' : 'text-red-600';

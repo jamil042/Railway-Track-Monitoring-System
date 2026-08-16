@@ -186,14 +186,15 @@ CREATE INDEX idx_notifications_user ON notifications (user_id, read);
 -- Trigger: keep tracks' cached latest readings in sync with the telemetry stream,
 -- and derive sensor_health + status from the latest live readings.
 --
--- Status is computed as DEVATION from each track's own baseline (the idle,
--- healthy reading), not from hardcoded absolute values. So a sensor that sits
--- at ~158cm when empty gets its own 158cm baseline; a deviation (obstacle,
--- heavy vibration) then moves the status.
+-- Status is computed as deviation from each track's own live baseline. The
+-- baseline is a slow-moving EMA that follows the sensor, so normal jitter
+-- (HC-SR04 uncertainty, tiny vibration) stays 'safe', while a real big excursion
+-- (obstacle blocking the beam, heavy vibration) pushes the deviation past the
+-- warning/critical bands and updates the card.
 --
--- Thresholds:
---   vibration deviation  (count/500ms): >= VIB_WARN(3) warning, >= VIB_CRIT(8) critical
---   ultrasonic deviation (cm):          >= US_WARN(3)  warning, >= US_CRIT(6)  critical
+-- Thresholds (deviation from the EMA baseline):
+--   vibration   (count/500ms): >= 30 warning, >= 60  critical
+--   ultrasonic  (cm):          >= 50 warning, >= 100 critical
 -- ----------------------------------------------------------------------------
 
 CREATE TRIGGER trg_track_latest_reading
@@ -205,25 +206,31 @@ BEGIN
        SET temperature      = CASE WHEN NEW.sensor_type = 'temperature' THEN NEW.value ELSE temperature END,
            vibration        = CASE WHEN NEW.sensor_type = 'vibration'   THEN NEW.value ELSE vibration END,
            displacement     = CASE WHEN NEW.sensor_type = 'ultrasonic'  THEN NEW.value ELSE displacement END,
+           baseline_distance  = CASE WHEN NEW.sensor_type = 'ultrasonic'
+                                     THEN 0.7 * baseline_distance + 0.3 * NEW.value
+                                     ELSE baseline_distance END,
+           baseline_vibration = CASE WHEN NEW.sensor_type = 'vibration'
+                                     THEN 0.7 * baseline_vibration + 0.3 * NEW.value
+                                     ELSE baseline_vibration END,
            readings_updated_at = NEW.recorded_at
      WHERE id = NEW.track_id;
 
     -- Recompute health + status from the (now updated) cached live values,
-    -- comparing to each track's own baseline. Health starts at 100 and
+    -- comparing to the adaptive EMA baseline. Health starts at 100 and
     -- loses points for each threshold crossed.
     UPDATE tracks
        SET sensor_health = CAST(MAX(
                  100
-                - (CASE WHEN ABS(vibration - baseline_vibration) >=  3 THEN 30 ELSE 0 END)
-                - (CASE WHEN ABS(vibration - baseline_vibration) >=  8 THEN 30 ELSE 0 END)
-                - (CASE WHEN ABS(displacement - baseline_distance) >=  3 THEN 20 ELSE 0 END)
-                - (CASE WHEN ABS(displacement - baseline_distance) >=  6 THEN 20 ELSE 0 END),
+                - (CASE WHEN ABS(vibration - baseline_vibration) >=  30 THEN 30 ELSE 0 END)
+                - (CASE WHEN ABS(vibration - baseline_vibration) >=  60 THEN 40 ELSE 0 END)
+                - (CASE WHEN ABS(displacement - baseline_distance) >=  50 THEN 15 ELSE 0 END)
+                - (CASE WHEN ABS(displacement - baseline_distance) >= 100 THEN 25 ELSE 0 END),
                 0) AS INTEGER),
            status = CASE
-                        WHEN ABS(vibration - baseline_vibration) >= 8
-                          OR ABS(displacement - baseline_distance) >= 6 THEN 'critical'
-                        WHEN ABS(vibration - baseline_vibration) >= 3
-                          OR ABS(displacement - baseline_distance) >= 3 THEN 'warning'
+                        WHEN ABS(vibration - baseline_vibration) >= 60
+                          OR ABS(displacement - baseline_distance) >= 100 THEN 'critical'
+                        WHEN ABS(vibration - baseline_vibration) >= 30
+                          OR ABS(displacement - baseline_distance) >= 50 THEN 'warning'
                         ELSE 'safe'
                     END
      WHERE id = NEW.track_id;
