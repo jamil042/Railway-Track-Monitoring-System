@@ -6,14 +6,12 @@ interface TrackCardProps {
   track: Track;
 }
 
-const OBSTACLE_MARGIN = 50; // ultrasonic baseline-এর থেকে এত cm কমে গেলে obstacle ধরা হবে
-
 export default function TrackCard({ track }: TrackCardProps) {
   const healthColor = track.sensorHealth >= 85 ? 'text-green-600' : track.sensorHealth >= 60 ? 'text-yellow-600' : 'text-red-600';
   const healthBg = track.sensorHealth >= 85 ? 'bg-green-500' : track.sensorHealth >= 60 ? 'bg-yellow-500' : 'bg-red-500';
 
-  const hasBaseline = track.baselineDistance && track.baselineDistance > 0;
-  const obstacle = !!hasBaseline && (track.displacement ?? 0) < (track.baselineDistance ?? 0) - OBSTACLE_MARGIN;
+  const obstacle = track.irBlocked === 1; // IR beam broken => obstacle (original serial dashboard behavior)
+  const vibrating = (track.vibration ?? 0) > 0;
 
   const fmt = (iso: string) => {
     const d = new Date(iso);
@@ -53,12 +51,12 @@ export default function TrackCard({ track }: TrackCardProps) {
             <p className={`text-xs font-semibold ${obstacle ? 'text-red-700' : 'text-emerald-700'}`}>
               {obstacle ? 'Obstacle' : 'Clear'}
             </p>
-            <p className="text-[10px] text-slate-400">Ultrasonic</p>
+            <p className="text-[10px] text-slate-400">IR Beam</p>
           </div>
-          <div className="bg-purple-50 border border-purple-100 rounded-lg p-2 text-center">
+          <div className={`border rounded-lg p-2 text-center ${vibrating ? 'bg-orange-50 border-orange-100' : 'bg-purple-50 border-purple-100'}`}>
             <div className="flex items-center justify-center text-purple-500 mb-0.5"><MdSpeed className="text-sm" /></div>
-            <p className="text-xs font-semibold text-slate-800">{track.vibration} g</p>
-            <p className="text-[10px] text-slate-400">Vibration</p>
+            <p className={`text-xs font-semibold ${vibrating ? 'text-orange-700' : 'text-slate-800'}`}>{track.vibration} g</p>
+            <p className="text-[10px] text-slate-400">{vibrating ? 'Vibrating' : 'Vibration'}</p>
           </div>
           <div className="bg-blue-50 border border-blue-100 rounded-lg p-2 text-center">
             <div className="flex items-center justify-center text-blue-500 mb-0.5"><MdSensors className="text-sm" /></div>

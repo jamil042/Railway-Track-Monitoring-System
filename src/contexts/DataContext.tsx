@@ -159,11 +159,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     refresh();
 
-    // Live telemetry: re-fetch silently every few seconds so new sensor
-    // readings/faults show up in the dashboard without a manual reload.
+    // Live telemetry: re-fetch silently every ~1.5s so new sensor readings turn
+    // the cards around as fast as the ~500ms ESP32 stream allows.
     const poll = setInterval(() => {
       refresh(true);
-    }, 3000);
+    }, 1500);
 
     return () => clearInterval(poll);
   }, [refresh]);

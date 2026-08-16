@@ -38,6 +38,7 @@ export interface Track {
   displacement: number;
   baselineDistance?: number;
   baselineVibration?: number;
+  irBlocked?: number;
 }
 
 export interface Fault {
