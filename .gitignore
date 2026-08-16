@@ -11,3 +11,9 @@ logs/
 *.log
 .claude-replay.*
 .tmp-*
+
+# Python cache
+__pycache__/
+*.pyc
+# Pi local backup
+Pi-backup/
