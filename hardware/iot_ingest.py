@@ -63,44 +63,59 @@ def main():
     ap.add_argument("--port", default=DEFAULT_PORT)
     ap.add_argument("--api", default=DEFAULT_API)
     ap.add_argument("--device-id", type=int, default=DEVICE_ID)
+    ap.add_argument("--reconnect-delay", type=float, default=3.0,
+                    help="USB disconnect হলে কত সেকেন্ড পরে আবার চেষ্টা করবে")
     args = ap.parse_args()
 
     print(f"[INGEST] Serial {args.port} -> {args.api}/api/sensor-readings")
     print(f"[INGEST] deviceId={args.device_id}  (sensor1->TR-001, sensor2->TR-002)")
 
-    try:
-        ser = serial.Serial(args.port, BAUD_RATE, timeout=1)
-    except serial.SerialException as e:
-        print(f"[FAIL] {args.port} খোলা যায়নি: {e}")
-        return
+    pushed = 0
 
+    def open_serial():
+        while True:
+            try:
+                return serial.Serial(args.port, BAUD_RATE, timeout=1)
+            except (serial.SerialException, OSError) as e:
+                print(f"[!] {args.port} পাওয়া যায়নি ({e}), {args.reconnect_delay:.0f}s পরে আবার চেষ্টা...")
+                time.sleep(args.reconnect_delay)
+
+    ser = open_serial()
     time.sleep(2)  # ESP32 রিস্টার্ট হওয়ার সময়টুকু
 
-    pushed = 0
     try:
         while True:
-            if ser.in_waiting > 0:
-                line = ser.readline().decode("utf-8", errors="ignore").strip()
-                if not (line.startswith("{") and line.endswith("}")):
-                    continue
-                try:
-                    data = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-
-                print(f"[{time.strftime('%H:%M:%S')}] {line}")
-
-                for key, (sensor_type, track_id) in SENSOR_KEYS.items():
-                    if key not in data:
+            try:
+                if ser.in_waiting > 0:
+                    line = ser.readline().decode("utf-8", errors="ignore").strip()
+                    if not (line.startswith("{") and line.endswith("}")):
                         continue
-                    code = push_reading(args.api, args.device_id, sensor_type, track_id,
-                                        data[key], UNITS[sensor_type])
-                    if code == 201:
-                        pushed += 1
-                    elif code:
-                        print(f"    {key} -> HTTP {code}")
+                    try:
+                        data = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
 
-            time.sleep(0.2)
+                    print(f"[{time.strftime('%H:%M:%S')}] {line}")
+
+                    for key, (sensor_type, track_id) in SENSOR_KEYS.items():
+                        if key not in data:
+                            continue
+                        code = push_reading(args.api, args.device_id, sensor_type, track_id,
+                                            data[key], UNITS[sensor_type])
+                        if code == 201:
+                            pushed += 1
+                        elif code:
+                            print(f"    {key} -> HTTP {code}")
+
+                time.sleep(0.2)
+            except (serial.SerialException, OSError) as e:
+                print(f"[!] Serial হারিয়েছে ({e}) — পুনরায় সংযোগ করছি...")
+                try:
+                    ser.close()
+                except Exception:
+                    pass
+                time.sleep(args.reconnect_delay)
+                ser = open_serial()
     except KeyboardInterrupt:
         print(f"\nStopped — total pushed: {pushed}")
     finally:
