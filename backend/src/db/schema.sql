@@ -181,7 +181,13 @@ CREATE INDEX idx_alert_logs_sent_at ON alert_logs (sent_at);
 CREATE INDEX idx_notifications_user ON notifications (user_id, read);
 
 -- ----------------------------------------------------------------------------
--- Trigger: keep tracks' cached latest readings in sync with the telemetry stream
+-- Trigger: keep tracks' cached latest readings in sync with the telemetry stream,
+-- and derive sensor_health + status from the latest live readings.
+--
+-- Status thresholds (calibrate against real healthy-track data):
+--   vibration  (SW-420 pulses per 500ms window): >=3 warning, >=8 critical
+--   ultrasonic (HC-SR04 cm deviation from ULTRASONIC_NORMAL_CM=20):
+--              >= ULTRASONIC_WARNING_DEV(3)cm warning, >= ULTRASONIC_EMERGENCY_DEV(6)cm critical
 -- ----------------------------------------------------------------------------
 
 CREATE TRIGGER trg_track_latest_reading
@@ -194,6 +200,23 @@ BEGIN
            vibration        = CASE WHEN NEW.sensor_type = 'vibration'   THEN NEW.value ELSE vibration END,
            displacement     = CASE WHEN NEW.sensor_type = 'ultrasonic'  THEN NEW.value ELSE displacement END,
            readings_updated_at = NEW.recorded_at
+     WHERE id = NEW.track_id;
+
+    -- Recompute health + status from the (now updated) cached live values.
+    -- Health starts at 100 and loses points for each threshold crossed.
+    UPDATE tracks
+       SET sensor_health = CAST(MAX(
+                100
+                - (CASE WHEN vibration >=  3 THEN 30 ELSE 0 END)
+                - (CASE WHEN vibration >=  8 THEN 30 ELSE 0 END)
+                - (CASE WHEN ABS(displacement - 20.0) >=  3 THEN 20 ELSE 0 END)
+                - (CASE WHEN ABS(displacement - 20.0) >=  6 THEN 20 ELSE 0 END),
+                0) AS INTEGER),
+           status = CASE
+                        WHEN vibration >= 8 OR ABS(displacement - 20.0) >= 6 THEN 'critical'
+                        WHEN vibration >= 3 OR ABS(displacement - 20.0) >= 3 THEN 'warning'
+                        ELSE 'safe'
+                    END
      WHERE id = NEW.track_id;
 END;
 

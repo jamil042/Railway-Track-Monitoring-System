@@ -158,6 +158,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     refresh();
+
+    // Live telemetry: re-fetch silently every few seconds so new sensor
+    // readings/faults show up in the dashboard without a manual reload.
+    const poll = setInterval(() => {
+      refresh(true);
+    }, 3000);
+
+    return () => clearInterval(poll);
   }, [refresh]);
 
   const updateTask = async (id: string, data: Partial<MaintenanceTask>) => {

@@ -16,29 +16,38 @@ const STATUS_FILTERS: { label: string; value: TrackStatus | 'all'; icon: typeof 
 ];
 
 export default function Monitoring() {
-  const { tracks } = useData();
+  const { tracks, readings } = useData();
+
+  // শুধু যে track-গুলোতে live sensor readings আছে সেগুলোই দেখাও (যেমন TR-001, TR-002)।
+  // বাকি placeholder/seed-only track cards এড়িয়ে যাও — array change না হলে ওগুলো কেবল জায়গা নেয়।
+  const liveTrackIds = useMemo(
+    () => new Set(readings.map(r => r.trackId).filter(Boolean)),
+    [readings],
+  );
+  const liveTracks = useMemo(() => tracks.filter(t => liveTrackIds.has(t.id)), [tracks, liveTrackIds]);
+
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<TrackStatus | 'all'>('all');
   const [page, setPage] = useState(1);
 
   const filtered = useMemo(() => {
-    return tracks.filter(t => {
+    return liveTracks.filter(t => {
       const matchSearch = search === '' ||
         t.id.toLowerCase().includes(search.toLowerCase()) ||
         t.stationName.toLowerCase().includes(search.toLowerCase());
       const matchStatus = statusFilter === 'all' || t.status === statusFilter;
       return matchSearch && matchStatus;
     });
-  }, [search, statusFilter, tracks]);
+  }, [search, statusFilter, liveTracks]);
 
   const totalPages = Math.ceil(filtered.length / PER_PAGE);
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const counts = {
-    all: tracks.length,
-    safe: tracks.filter(t => t.status === 'safe').length,
-    warning: tracks.filter(t => t.status === 'warning').length,
-    critical: tracks.filter(t => t.status === 'critical').length,
+    all: liveTracks.length,
+    safe: liveTracks.filter(t => t.status === 'safe').length,
+    warning: liveTracks.filter(t => t.status === 'warning').length,
+    critical: liveTracks.filter(t => t.status === 'critical').length,
   };
 
   const handleFilterChange = (v: TrackStatus | 'all') => { setStatusFilter(v); setPage(1); };

@@ -59,7 +59,20 @@ export function createReading(data: Partial<SensorReading>): SensorReading {
       unit: data.unit ?? null,
       recordedAt: data.recordedAt ?? new Date().toISOString(),
     })
-  return getReading(Number(result.lastInsertRowid))
+
+  // Realtime pruning: the backend stores only the LATEST reading per
+  // (device_id, track_id, sensor_type). Older rows for the same slot are
+  // deleted so the DB doesn't grow without bound — only live data remains.
+  const newId = Number(result.lastInsertRowid)
+  db.prepare(
+    `DELETE FROM sensor_readings
+      WHERE device_id = @deviceId
+        AND track_id  IS @trackId
+        AND sensor_type = @sensorType
+        AND id <> @newId`,
+  ).run({ deviceId, trackId: data.trackId ?? null, sensorType: data.sensorType, newId })
+
+  return getReading(newId)
 }
 
 export function getReading(id: number): SensorReading {
