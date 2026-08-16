@@ -42,6 +42,7 @@ CREATE TABLE tracks (
     displacement        REAL,                              -- latest cached cm (ultrasonic)
     baseline_distance   REAL NOT NULL DEFAULT 20,          -- normal idle ultrasonic distance (cm)
     baseline_vibration  REAL NOT NULL DEFAULT 0,           -- normal idle vibration count
+    ir_blocked          INTEGER NOT NULL DEFAULT 0,        -- latest IR beam state: 1=blocked/fault, 0=clear
     readings_updated_at TEXT                               -- ISO-8601 of cached snapshot
 );
 
@@ -200,12 +201,15 @@ CREATE INDEX idx_notifications_user ON notifications (user_id, read);
 CREATE TRIGGER trg_track_latest_reading
 AFTER INSERT ON sensor_readings
 FOR EACH ROW
-WHEN NEW.track_id IS NOT NULL AND NEW.sensor_type IN ('temperature', 'vibration', 'ultrasonic')
+WHEN NEW.track_id IS NOT NULL AND NEW.sensor_type IN ('temperature', 'vibration', 'ultrasonic', 'ir_beam')
 BEGIN
     UPDATE tracks
        SET temperature      = CASE WHEN NEW.sensor_type = 'temperature' THEN NEW.value ELSE temperature END,
            vibration        = CASE WHEN NEW.sensor_type = 'vibration'   THEN NEW.value ELSE vibration END,
            displacement     = CASE WHEN NEW.sensor_type = 'ultrasonic'  THEN NEW.value ELSE displacement END,
+           ir_blocked       = CASE WHEN NEW.sensor_type = 'ir_beam'
+                                   THEN CASE WHEN NEW.value = 0 THEN 1 ELSE 0 END
+                                   ELSE ir_blocked END,
            baseline_distance  = CASE WHEN NEW.sensor_type = 'ultrasonic'
                                      THEN 0.7 * baseline_distance + 0.3 * NEW.value
                                      ELSE baseline_distance END,
@@ -215,18 +219,31 @@ BEGIN
            readings_updated_at = NEW.recorded_at
      WHERE id = NEW.track_id;
 
+    -- IR beam is the authoritative obstacle signal (as in the original
+    -- serial dashboard): a broken beam (ir_beam = 0) is instantly critical.
+    UPDATE tracks
+       SET sensor_health = CASE WHEN NEW.sensor_type = 'ir_beam' AND NEW.value = 0
+                                THEN MIN(sensor_health, 30)
+                                ELSE sensor_health END,
+           status        = CASE WHEN NEW.sensor_type = 'ir_beam' AND NEW.value = 0
+                                THEN 'critical'
+                                ELSE status END
+     WHERE id = NEW.track_id;
+
     -- Recompute health + status from the (now updated) cached live values,
     -- comparing to the adaptive EMA baseline. Health starts at 100 and
     -- loses points for each threshold crossed.
     UPDATE tracks
        SET sensor_health = CAST(MAX(
                  100
+                - (CASE WHEN ir_blocked = 1 THEN 45 ELSE 0 END)
                 - (CASE WHEN ABS(vibration - baseline_vibration) >=  30 THEN 30 ELSE 0 END)
                 - (CASE WHEN ABS(vibration - baseline_vibration) >=  60 THEN 40 ELSE 0 END)
                 - (CASE WHEN ABS(displacement - baseline_distance) >=  50 THEN 15 ELSE 0 END)
                 - (CASE WHEN ABS(displacement - baseline_distance) >= 100 THEN 25 ELSE 0 END),
                 0) AS INTEGER),
            status = CASE
+                        WHEN ir_blocked = 1 THEN 'critical'
                         WHEN ABS(vibration - baseline_vibration) >= 60
                           OR ABS(displacement - baseline_distance) >= 100 THEN 'critical'
                         WHEN ABS(vibration - baseline_vibration) >= 30
