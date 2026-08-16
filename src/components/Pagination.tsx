@@ -12,7 +12,7 @@ export default function Pagination({ page, totalPages, onPage }: PaginationProps
       <button
         disabled={page === 1}
         onClick={() => onPage(page - 1)}
-        className="px-3 py-1.5 text-sm rounded-lg bg-slate-700/50 text-slate-300 hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        className="px-3 py-1.5 text-sm rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
       >
         ‹
       </button>
@@ -20,7 +20,7 @@ export default function Pagination({ page, totalPages, onPage }: PaginationProps
         <button
           key={p}
           onClick={() => onPage(p)}
-          className={`w-8 h-8 text-sm rounded-lg font-medium transition-colors ${p === page ? 'bg-blue-600 text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600'}`}
+          className={`w-8 h-8 text-sm rounded-lg font-medium transition-colors border ${p === page ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
         >
           {p}
         </button>
@@ -28,7 +28,7 @@ export default function Pagination({ page, totalPages, onPage }: PaginationProps
       <button
         disabled={page === totalPages}
         onClick={() => onPage(page + 1)}
-        className="px-3 py-1.5 text-sm rounded-lg bg-slate-700/50 text-slate-300 hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        className="px-3 py-1.5 text-sm rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
       >
         ›
       </button>

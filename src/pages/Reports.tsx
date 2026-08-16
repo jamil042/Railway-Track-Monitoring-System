@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import {
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell,
 } from 'recharts';
 import { MONTHLY_STATS, FAULT_TYPE_DATA, STATION_FAULT_DATA, MOCK_FAULTS } from '../data/mockData';
-import { MdDownload, MdTableChart, MdPictureAsPdf, MdBarChart, MdTrendingUp, MdWarning, MdCheckCircle } from 'react-icons/md';
+import { MdDownload, MdTableChart, MdPictureAsPdf, MdBarChart, MdWarning, MdCheckCircle, MdTrendingUp } from 'react-icons/md';
 
 type Period = 'daily' | 'weekly' | 'monthly';
 
 const TOOLTIP_STYLE = {
-  backgroundColor: '#1E293B', border: '1px solid rgba(148,163,184,0.15)', borderRadius: '12px', color: '#F8FAFC', fontSize: 12,
+  backgroundColor: '#fff', border: '1px solid #E2E8F0', borderRadius: '12px', color: '#0F172A', fontSize: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
 };
 
 const DAILY_DATA = [
@@ -40,20 +40,20 @@ export default function Reports() {
   const underMaint = MOCK_FAULTS.filter(f => f.status === 'under_maintenance').length;
 
   const mostFaultyStation = STATION_FAULT_DATA[0];
-  const mostCommonFault = FAULT_TYPE_DATA.sort((a, b) => b.value - a.value)[0];
+  const mostCommonFault = [...FAULT_TYPE_DATA].sort((a, b) => b.value - a.value)[0];
 
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-bold text-white">Reports & Analytics</h1>
+          <h1 className="text-xl font-bold text-slate-900">Reports & Analytics</h1>
           <p className="text-slate-500 text-sm mt-0.5">Comprehensive fault analysis and performance metrics</p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-2 px-3 py-2 bg-red-600/15 hover:bg-red-600/25 border border-red-500/20 text-red-400 text-xs font-medium rounded-xl transition-colors">
+          <button className="flex items-center gap-2 px-3 py-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 text-xs font-semibold rounded-xl transition-colors">
             <MdPictureAsPdf /> Export PDF
           </button>
-          <button className="flex items-center gap-2 px-3 py-2 bg-green-600/15 hover:bg-green-600/25 border border-green-500/20 text-green-400 text-xs font-medium rounded-xl transition-colors">
+          <button className="flex items-center gap-2 px-3 py-2 bg-green-50 hover:bg-green-100 border border-green-200 text-green-700 text-xs font-semibold rounded-xl transition-colors">
             <MdTableChart /> Export Excel
           </button>
         </div>
@@ -61,13 +61,15 @@ export default function Reports() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: 'Total Faults (All Time)', value: totalFaults, icon: MdWarning, color: 'text-yellow-400', bg: 'bg-yellow-500/10', border: 'border-yellow-500/20' },
-          { label: 'Active Faults', value: activeFaults, icon: MdWarning, color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/20' },
-          { label: 'Fixed Faults', value: fixedFaults, icon: MdCheckCircle, color: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/20' },
-          { label: 'Under Maintenance', value: underMaint, icon: MdTrendingUp, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
+          { label: 'Total Faults (All Time)', value: totalFaults, icon: MdWarning, color: 'text-slate-700', bg: 'bg-slate-50', border: 'border-slate-200' },
+          { label: 'Active Faults', value: activeFaults, icon: MdWarning, color: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200' },
+          { label: 'Fixed Faults', value: fixedFaults, icon: MdCheckCircle, color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200' },
+          { label: 'Under Maintenance', value: underMaint, icon: MdTrendingUp, color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200' },
         ].map(s => (
-          <div key={s.label} className={`bg-[#1E293B] border ${s.border} ${s.bg} rounded-xl p-4`}>
-            <s.icon className={`text-2xl ${s.color} mb-2`} />
+          <div key={s.label} className={`bg-white border ${s.border} rounded-xl p-4 shadow-sm`}>
+            <div className={`w-9 h-9 ${s.bg} rounded-xl flex items-center justify-center mb-3`}>
+              <s.icon className={`text-xl ${s.color}`} />
+            </div>
             <p className={`text-3xl font-bold ${s.color}`}>{s.value}</p>
             <p className="text-xs text-slate-500 mt-0.5">{s.label}</p>
           </div>
@@ -75,24 +77,26 @@ export default function Reports() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="bg-[#1E293B] border border-slate-700/50 rounded-xl p-4">
-          <p className="text-xs text-slate-500 mb-1">Most Faulty Station</p>
-          <p className="text-lg font-bold text-white">{mostFaultyStation.name}</p>
-          <p className="text-sm text-red-400">{mostFaultyStation.faults} active faults</p>
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 shadow-sm">
+          <p className="text-xs text-slate-500 mb-1 font-medium">Most Faulty Station</p>
+          <p className="text-lg font-bold text-slate-900">{mostFaultyStation.name}</p>
+          <p className="text-sm text-red-600 font-semibold">{mostFaultyStation.faults} active faults</p>
         </div>
-        <div className="bg-[#1E293B] border border-slate-700/50 rounded-xl p-4">
-          <p className="text-xs text-slate-500 mb-1">Most Common Fault Type</p>
-          <p className="text-lg font-bold text-white">{mostCommonFault.name}</p>
-          <p className="text-sm text-yellow-400">{mostCommonFault.value} occurrences</p>
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 shadow-sm">
+          <p className="text-xs text-slate-500 mb-1 font-medium">Most Common Fault Type</p>
+          <p className="text-lg font-bold text-slate-900">{mostCommonFault.name}</p>
+          <p className="text-sm text-yellow-600 font-semibold">{mostCommonFault.value} occurrences</p>
         </div>
       </div>
 
-      <div className="bg-[#1E293B] border border-slate-700/50 rounded-2xl p-5">
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <h3 className="text-sm font-semibold text-white flex items-center gap-2"><MdBarChart className="text-blue-400" /> Fault Statistics</h3>
-          <div className="flex items-center gap-1.5">
+          <h3 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+            <MdBarChart className="text-blue-600 text-lg" /> Fault Statistics
+          </h3>
+          <div className="flex items-center gap-1.5 bg-slate-100 rounded-xl p-1">
             {(['daily', 'weekly', 'monthly'] as Period[]).map(p => (
-              <button key={p} onClick={() => setPeriod(p)} className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all capitalize ${period === p ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-slate-200'}`}>
+              <button key={p} onClick={() => setPeriod(p)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all capitalize ${period === p ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
                 {p}
               </button>
             ))}
@@ -100,45 +104,56 @@ export default function Reports() {
         </div>
         <ResponsiveContainer width="100%" height={240}>
           <BarChart data={chartData} barSize={period === 'daily' ? 14 : 20}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.07)" />
-            <XAxis dataKey={xKey} tick={{ fill: '#64748B', fontSize: 11 }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fill: '#64748B', fontSize: 11 }} axisLine={false} tickLine={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+            <XAxis dataKey={xKey} tick={{ fill: '#94A3B8', fontSize: 11 }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fill: '#94A3B8', fontSize: 11 }} axisLine={false} tickLine={false} />
             <Tooltip contentStyle={TOOLTIP_STYLE} />
-            <Legend wrapperStyle={{ fontSize: 11, color: '#94A3B8' }} />
-            <Bar dataKey="faults" name="Detected" fill="#DC2626" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="fixed" name="Fixed" fill="#16A34A" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="maintenance" name="Maintenance" fill="#2563EB" radius={[4, 4, 0, 0]} />
+            <Legend wrapperStyle={{ fontSize: 11, color: '#64748B' }} />
+            <Bar dataKey="faults" name="Detected" fill="#DC2626" radius={[4, 4, 0, 0]} opacity={0.85} />
+            <Bar dataKey="fixed" name="Fixed" fill="#16A34A" radius={[4, 4, 0, 0]} opacity={0.85} />
+            <Bar dataKey="maintenance" name="Maintenance" fill="#2563EB" radius={[4, 4, 0, 0]} opacity={0.85} />
           </BarChart>
         </ResponsiveContainer>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="bg-[#1E293B] border border-slate-700/50 rounded-2xl p-5">
-          <h3 className="text-sm font-semibold text-white mb-4">Faults by Station</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={STATION_FAULT_DATA} layout="vertical" barSize={14}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.07)" horizontal={false} />
-              <XAxis type="number" tick={{ fill: '#64748B', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis dataKey="name" type="category" tick={{ fill: '#94A3B8', fontSize: 11 }} axisLine={false} tickLine={false} width={80} />
-              <Tooltip contentStyle={TOOLTIP_STYLE} />
-              <Bar dataKey="faults" name="Faults" radius={[0, 4, 4, 0]}>
-                {STATION_FAULT_DATA.map((_, i) => <Cell key={i} fill={['#DC2626', '#F59E0B', '#F59E0B', '#3B82F6', '#3B82F6', '#6B7280'][i]} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <h3 className="text-sm font-semibold text-slate-800 mb-4">Faults by Station</h3>
+          <div className="space-y-3">
+            {STATION_FAULT_DATA.map((d, i) => (
+              <div key={d.name}>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="text-slate-700 font-medium">{d.name}</span>
+                  <span className="text-slate-500 font-semibold">{d.faults} faults</span>
+                </div>
+                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${(d.faults / STATION_FAULT_DATA[0].faults) * 100}%`,
+                      backgroundColor: ['#DC2626', '#F59E0B', '#F59E0B', '#3B82F6', '#3B82F6', '#94A3B8'][i],
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div className="bg-[#1E293B] border border-slate-700/50 rounded-2xl p-5">
-          <h3 className="text-sm font-semibold text-white mb-4">Fault Type Distribution</h3>
-          <div className="space-y-2.5">
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <h3 className="text-sm font-semibold text-slate-800 mb-4">Fault Type Breakdown</h3>
+          <div className="space-y-3">
             {FAULT_TYPE_DATA.map(d => (
               <div key={d.name}>
                 <div className="flex items-center justify-between text-xs mb-1">
-                  <span className="text-slate-400">{d.name}</span>
-                  <span className="text-slate-300 font-medium">{d.value}</span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: d.color }} />
+                    <span className="text-slate-700">{d.name}</span>
+                  </span>
+                  <span className="text-slate-500 font-semibold">{d.value}</span>
                 </div>
-                <div className="h-1.5 bg-slate-700/60 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full transition-all" style={{ width: `${(d.value / 22) * 100}%`, backgroundColor: d.color }} />
+                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${(d.value / 22) * 100}%`, backgroundColor: d.color }} />
                 </div>
               </div>
             ))}

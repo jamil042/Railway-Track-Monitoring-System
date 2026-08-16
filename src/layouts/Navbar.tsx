@@ -26,10 +26,10 @@ export default function Navbar({ onMenuToggle }: NavbarProps) {
   };
 
   const typeColor: Record<string, string> = {
-    critical: 'text-red-400',
-    warning: 'text-yellow-400',
-    info: 'text-blue-400',
-    success: 'text-green-400',
+    critical: 'text-red-500',
+    warning: 'text-yellow-500',
+    info: 'text-blue-500',
+    success: 'text-green-500',
   };
 
   const roleLabel: Record<string, string> = {
@@ -39,36 +39,36 @@ export default function Navbar({ onMenuToggle }: NavbarProps) {
   };
 
   return (
-    <header className="h-16 bg-[#0F172A]/95 backdrop-blur-sm border-b border-slate-800/80 flex items-center px-4 gap-3 sticky top-0 z-20">
+    <header className="h-16 bg-white border-b border-slate-200 flex items-center px-4 gap-3 sticky top-0 z-20 shadow-sm">
       <button
         onClick={onMenuToggle}
-        className="lg:hidden w-9 h-9 rounded-xl bg-slate-800/60 flex items-center justify-center text-slate-400 hover:text-white"
+        className="lg:hidden w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition-colors"
       >
         <MdMenu className="text-xl" />
       </button>
 
       <div className="flex-1 hidden sm:flex">
         <div className="relative max-w-xs w-full">
-          <MdSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-lg" />
+          <MdSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg" />
           <input
             placeholder="Search tracks, stations..."
-            className="w-full pl-9 pr-4 py-2 bg-slate-800/60 border border-slate-700/40 rounded-xl text-sm text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500/40 transition-colors"
+            className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:border-blue-400 focus:bg-white transition-colors"
           />
         </div>
       </div>
 
       <div className="ml-auto flex items-center gap-2">
-        <div className="hidden md:flex items-center gap-2 bg-slate-800/40 border border-slate-700/40 rounded-xl px-3 py-1.5">
-          <MdCircle className="text-green-400 text-xs animate-pulse" />
-          <span className="text-xs text-slate-300 font-mono tracking-wider">
-            {time.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+        <div className="hidden md:flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
+          <MdCircle className="text-green-500 text-xs animate-pulse" />
+          <span className="text-xs text-slate-600 font-mono tracking-wider">
+            {time.toLocaleTimeString('en-BD', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </span>
         </div>
 
         <div className="relative">
           <button
             onClick={() => setShowNotif(!showNotif)}
-            className="relative w-9 h-9 rounded-xl bg-slate-800/60 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+            className="relative w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition-colors"
           >
             <MdNotifications className="text-xl" />
             {unread > 0 && (
@@ -78,24 +78,24 @@ export default function Navbar({ onMenuToggle }: NavbarProps) {
             )}
           </button>
           {showNotif && (
-            <div className="absolute right-0 top-12 w-80 bg-[#1E293B] border border-slate-700/60 rounded-2xl shadow-2xl overflow-hidden z-50">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700/50">
-                <p className="text-sm font-semibold text-white">Notifications</p>
-                {unread > 0 && <span className="text-xs text-blue-400">{unread} unread</span>}
+            <div className="absolute right-0 top-12 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden z-50">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+                <p className="text-sm font-semibold text-slate-800">Notifications</p>
+                {unread > 0 && <span className="text-xs text-blue-600 font-medium">{unread} unread</span>}
               </div>
-              <div className="max-h-72 overflow-y-auto divide-y divide-slate-700/30">
+              <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
                 {notifications.map(n => (
                   <div
                     key={n.id}
                     onClick={() => markRead(n.id)}
-                    className={`px-4 py-3 cursor-pointer hover:bg-slate-700/20 transition-colors ${!n.read ? 'bg-slate-800/30' : ''}`}
+                    className={`px-4 py-3 cursor-pointer hover:bg-slate-50 transition-colors ${!n.read ? 'bg-blue-50/60' : ''}`}
                   >
                     <div className="flex items-start gap-2">
                       <MdCircle className={`text-xs mt-1 flex-shrink-0 ${typeColor[n.type]}`} />
                       <div>
-                        <p className={`text-xs font-semibold ${!n.read ? 'text-white' : 'text-slate-300'}`}>{n.title}</p>
+                        <p className={`text-xs font-semibold ${!n.read ? 'text-slate-900' : 'text-slate-600'}`}>{n.title}</p>
                         <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{n.message}</p>
-                        <p className="text-[10px] text-slate-600 mt-1">{new Date(n.time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</p>
+                        <p className="text-[10px] text-slate-400 mt-1">{new Date(n.time).toLocaleTimeString('en-BD', { hour: '2-digit', minute: '2-digit' })}</p>
                       </div>
                     </div>
                   </div>
@@ -107,10 +107,10 @@ export default function Navbar({ onMenuToggle }: NavbarProps) {
 
         <div className="flex items-center gap-2 pl-1">
           <div className="text-right hidden sm:block">
-            <p className="text-xs font-semibold text-white leading-tight">{user?.name}</p>
+            <p className="text-xs font-semibold text-slate-800 leading-tight">{user?.name}</p>
             <p className="text-[10px] text-slate-500">{user ? roleLabel[user.role] : ''}</p>
           </div>
-          <div className="w-9 h-9 rounded-full bg-blue-600/30 border border-blue-500/30 flex items-center justify-center text-blue-400 text-sm font-bold">
+          <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold">
             {user?.name.charAt(0)}
           </div>
         </div>

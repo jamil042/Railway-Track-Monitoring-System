@@ -5,47 +5,47 @@ export const MOCK_USERS: User[] = [
     id: 'u1',
     username: 'admin',
     password: 'admin123',
-    name: 'Rajesh Kumar',
+    name: 'Md. Rafiqul Islam',
     role: 'railway_administrator',
-    email: 'rajesh.kumar@railways.gov.in',
-    station: 'HQ - New Delhi',
+    email: 'rafiqul.islam@railway.gov.bd',
+    station: 'HQ — Dhaka',
   },
   {
     id: 'u2',
     username: 'incharge',
     password: 'incharge123',
-    name: 'Priya Sharma',
+    name: 'Fatema Begum',
     role: 'station_incharge',
-    email: 'priya.sharma@railways.gov.in',
-    station: 'Mumbai Central',
+    email: 'fatema.begum@railway.gov.bd',
+    station: 'Kamalapur Railway Station',
   },
   {
     id: 'u3',
     username: 'maintenance',
     password: 'maint123',
-    name: 'Anil Verma',
+    name: 'Abul Kalam Azad',
     role: 'maintenance_team',
-    email: 'anil.verma@railways.gov.in',
-    station: 'Chennai Central',
+    email: 'abul.azad@railway.gov.bd',
+    station: 'Chattogram Central',
   },
 ];
 
 export const MOCK_STATIONS: Station[] = [
-  { id: 'st1', name: 'New Delhi Junction', location: 'New Delhi', totalTracks: 24, activeFaults: 3, status: 'warning' },
-  { id: 'st2', name: 'Mumbai Central', location: 'Mumbai', totalTracks: 18, activeFaults: 1, status: 'warning' },
-  { id: 'st3', name: 'Chennai Central', location: 'Chennai', totalTracks: 16, activeFaults: 0, status: 'safe' },
-  { id: 'st4', name: 'Howrah Junction', location: 'Kolkata', totalTracks: 22, activeFaults: 5, status: 'critical' },
-  { id: 'st5', name: 'Bangalore City', location: 'Bengaluru', totalTracks: 14, activeFaults: 0, status: 'safe' },
-  { id: 'st6', name: 'Hyderabad Deccan', location: 'Hyderabad', totalTracks: 12, activeFaults: 2, status: 'warning' },
-  { id: 'st7', name: 'Pune Junction', location: 'Pune', totalTracks: 10, activeFaults: 1, status: 'warning' },
-  { id: 'st8', name: 'Jaipur Junction', location: 'Jaipur', totalTracks: 8, activeFaults: 0, status: 'safe' },
+  { id: 'st1', name: 'Kamalapur Railway Station', location: 'Dhaka', totalTracks: 22, activeFaults: 3, status: 'warning' },
+  { id: 'st2', name: 'Chattogram Central', location: 'Chattogram', totalTracks: 18, activeFaults: 1, status: 'warning' },
+  { id: 'st3', name: 'Rajshahi Junction', location: 'Rajshahi', totalTracks: 14, activeFaults: 0, status: 'safe' },
+  { id: 'st4', name: 'Khulna Railway Station', location: 'Khulna', totalTracks: 20, activeFaults: 5, status: 'critical' },
+  { id: 'st5', name: 'Sylhet Junction', location: 'Sylhet', totalTracks: 12, activeFaults: 0, status: 'safe' },
+  { id: 'st6', name: 'Mymensingh Station', location: 'Mymensingh', totalTracks: 10, activeFaults: 2, status: 'warning' },
+  { id: 'st7', name: 'Comilla Railway Station', location: 'Comilla', totalTracks: 8, activeFaults: 1, status: 'warning' },
+  { id: 'st8', name: 'Rangpur Junction', location: 'Rangpur', totalTracks: 8, activeFaults: 0, status: 'safe' },
 ];
 
 export const MOCK_TRACKS: Track[] = [
   {
     id: 'TR-001',
     stationId: 'st1',
-    stationName: 'New Delhi Junction',
+    stationName: 'Kamalapur Railway Station',
     status: 'critical',
     sensorHealth: 62,
     lastUpdated: '2026-07-22T08:34:00',
@@ -57,7 +57,7 @@ export const MOCK_TRACKS: Track[] = [
   {
     id: 'TR-002',
     stationId: 'st1',
-    stationName: 'New Delhi Junction',
+    stationName: 'Kamalapur Railway Station',
     status: 'warning',
     sensorHealth: 81,
     lastUpdated: '2026-07-22T08:30:00',
@@ -69,7 +69,7 @@ export const MOCK_TRACKS: Track[] = [
   {
     id: 'TR-003',
     stationId: 'st2',
-    stationName: 'Mumbai Central',
+    stationName: 'Chattogram Central',
     status: 'safe',
     sensorHealth: 97,
     lastUpdated: '2026-07-22T08:31:00',
@@ -81,7 +81,7 @@ export const MOCK_TRACKS: Track[] = [
   {
     id: 'TR-004',
     stationId: 'st4',
-    stationName: 'Howrah Junction',
+    stationName: 'Khulna Railway Station',
     status: 'critical',
     sensorHealth: 45,
     lastUpdated: '2026-07-22T08:28:00',
@@ -93,7 +93,7 @@ export const MOCK_TRACKS: Track[] = [
   {
     id: 'TR-005',
     stationId: 'st3',
-    stationName: 'Chennai Central',
+    stationName: 'Rajshahi Junction',
     status: 'safe',
     sensorHealth: 99,
     lastUpdated: '2026-07-22T08:35:00',
@@ -105,7 +105,7 @@ export const MOCK_TRACKS: Track[] = [
   {
     id: 'TR-006',
     stationId: 'st4',
-    stationName: 'Howrah Junction',
+    stationName: 'Khulna Railway Station',
     status: 'warning',
     sensorHealth: 73,
     lastUpdated: '2026-07-22T08:27:00',
@@ -117,7 +117,7 @@ export const MOCK_TRACKS: Track[] = [
   {
     id: 'TR-007',
     stationId: 'st5',
-    stationName: 'Bangalore City',
+    stationName: 'Sylhet Junction',
     status: 'safe',
     sensorHealth: 95,
     lastUpdated: '2026-07-22T08:36:00',
@@ -129,7 +129,7 @@ export const MOCK_TRACKS: Track[] = [
   {
     id: 'TR-008',
     stationId: 'st6',
-    stationName: 'Hyderabad Deccan',
+    stationName: 'Mymensingh Station',
     status: 'warning',
     sensorHealth: 79,
     lastUpdated: '2026-07-22T08:33:00',
@@ -141,7 +141,7 @@ export const MOCK_TRACKS: Track[] = [
   {
     id: 'TR-009',
     stationId: 'st7',
-    stationName: 'Pune Junction',
+    stationName: 'Comilla Railway Station',
     status: 'safe',
     sensorHealth: 93,
     lastUpdated: '2026-07-22T08:32:00',
@@ -153,7 +153,7 @@ export const MOCK_TRACKS: Track[] = [
   {
     id: 'TR-010',
     stationId: 'st8',
-    stationName: 'Jaipur Junction',
+    stationName: 'Rangpur Junction',
     status: 'safe',
     sensorHealth: 98,
     lastUpdated: '2026-07-22T08:37:00',
@@ -165,7 +165,7 @@ export const MOCK_TRACKS: Track[] = [
   {
     id: 'TR-011',
     stationId: 'st4',
-    stationName: 'Howrah Junction',
+    stationName: 'Khulna Railway Station',
     status: 'critical',
     sensorHealth: 38,
     lastUpdated: '2026-07-22T08:20:00',
@@ -177,7 +177,7 @@ export const MOCK_TRACKS: Track[] = [
   {
     id: 'TR-012',
     stationId: 'st2',
-    stationName: 'Mumbai Central',
+    stationName: 'Chattogram Central',
     status: 'warning',
     sensorHealth: 77,
     lastUpdated: '2026-07-22T08:29:00',
@@ -192,7 +192,7 @@ export const MOCK_FAULTS: Fault[] = [
   {
     id: 'FLT-2026-001',
     stationId: 'st4',
-    stationName: 'Howrah Junction',
+    stationName: 'Khulna Railway Station',
     trackId: 'TR-011',
     faultType: 'Rail Fracture',
     severity: 'critical',
@@ -207,7 +207,7 @@ export const MOCK_FAULTS: Fault[] = [
   {
     id: 'FLT-2026-002',
     stationId: 'st1',
-    stationName: 'New Delhi Junction',
+    stationName: 'Kamalapur Railway Station',
     trackId: 'TR-001',
     faultType: 'Track Misalignment',
     severity: 'critical',
@@ -222,7 +222,7 @@ export const MOCK_FAULTS: Fault[] = [
   {
     id: 'FLT-2026-003',
     stationId: 'st4',
-    stationName: 'Howrah Junction',
+    stationName: 'Khulna Railway Station',
     trackId: 'TR-004',
     faultType: 'Weld Crack',
     severity: 'high',
@@ -237,7 +237,7 @@ export const MOCK_FAULTS: Fault[] = [
   {
     id: 'FLT-2026-004',
     stationId: 'st1',
-    stationName: 'New Delhi Junction',
+    stationName: 'Kamalapur Railway Station',
     trackId: 'TR-002',
     faultType: 'Ballast Erosion',
     severity: 'medium',
@@ -252,7 +252,7 @@ export const MOCK_FAULTS: Fault[] = [
   {
     id: 'FLT-2026-005',
     stationId: 'st6',
-    stationName: 'Hyderabad Deccan',
+    stationName: 'Mymensingh Station',
     trackId: 'TR-008',
     faultType: 'Rail Wear',
     severity: 'medium',
@@ -267,7 +267,7 @@ export const MOCK_FAULTS: Fault[] = [
   {
     id: 'FLT-2026-006',
     stationId: 'st2',
-    stationName: 'Mumbai Central',
+    stationName: 'Chattogram Central',
     trackId: 'TR-012',
     faultType: 'Joint Gap Excess',
     severity: 'low',
@@ -282,7 +282,7 @@ export const MOCK_FAULTS: Fault[] = [
   {
     id: 'FLT-2026-007',
     stationId: 'st4',
-    stationName: 'Howrah Junction',
+    stationName: 'Khulna Railway Station',
     trackId: 'TR-006',
     faultType: 'Corrugation',
     severity: 'medium',
@@ -297,7 +297,7 @@ export const MOCK_FAULTS: Fault[] = [
   {
     id: 'FLT-2026-008',
     stationId: 'st7',
-    stationName: 'Pune Junction',
+    stationName: 'Comilla Railway Station',
     trackId: 'TR-009',
     faultType: 'Spike Failure',
     severity: 'low',
@@ -315,11 +315,11 @@ export const MOCK_MAINTENANCE: MaintenanceTask[] = [
   {
     id: 'MNT-001',
     faultId: 'FLT-2026-002',
-    stationName: 'New Delhi Junction',
+    stationName: 'Kamalapur Railway Station',
     trackId: 'TR-001',
     faultType: 'Track Misalignment',
     assignedTeam: 'Alpha Team',
-    engineer: 'Suresh Nair',
+    engineer: 'Md. Shahadat Hossain',
     progress: 65,
     status: 'in_progress',
     startTime: '2026-07-22T07:30:00',
@@ -328,11 +328,11 @@ export const MOCK_MAINTENANCE: MaintenanceTask[] = [
   {
     id: 'MNT-002',
     faultId: 'FLT-2026-003',
-    stationName: 'Howrah Junction',
+    stationName: 'Khulna Railway Station',
     trackId: 'TR-004',
     faultType: 'Weld Crack',
     assignedTeam: 'Beta Team',
-    engineer: 'Mohammed Iqbal',
+    engineer: 'Nasrin Sultana',
     progress: 40,
     status: 'in_progress',
     startTime: '2026-07-22T06:00:00',
@@ -341,11 +341,11 @@ export const MOCK_MAINTENANCE: MaintenanceTask[] = [
   {
     id: 'MNT-003',
     faultId: 'FLT-2026-007',
-    stationName: 'Howrah Junction',
+    stationName: 'Khulna Railway Station',
     trackId: 'TR-006',
     faultType: 'Corrugation',
     assignedTeam: 'Gamma Team',
-    engineer: 'Deepak Mishra',
+    engineer: 'Md. Rezaul Karim',
     progress: 20,
     status: 'in_progress',
     startTime: '2026-07-22T09:00:00',
@@ -354,11 +354,11 @@ export const MOCK_MAINTENANCE: MaintenanceTask[] = [
   {
     id: 'MNT-004',
     faultId: 'FLT-2026-001',
-    stationName: 'Howrah Junction',
+    stationName: 'Khulna Railway Station',
     trackId: 'TR-011',
     faultType: 'Rail Fracture',
     assignedTeam: 'Delta Team',
-    engineer: 'Kavita Reddy',
+    engineer: 'Shamima Akter',
     progress: 0,
     status: 'pending',
     completionTime: '2026-07-22T20:00:00',
@@ -366,11 +366,11 @@ export const MOCK_MAINTENANCE: MaintenanceTask[] = [
   {
     id: 'MNT-005',
     faultId: 'FLT-2026-006',
-    stationName: 'Mumbai Central',
+    stationName: 'Chattogram Central',
     trackId: 'TR-012',
     faultType: 'Joint Gap Excess',
     assignedTeam: 'Epsilon Team',
-    engineer: 'Ramesh Pillai',
+    engineer: 'Abdullah Al Mamun',
     progress: 100,
     status: 'completed',
     startTime: '2026-07-21T20:00:00',
@@ -379,11 +379,11 @@ export const MOCK_MAINTENANCE: MaintenanceTask[] = [
   {
     id: 'MNT-006',
     faultId: 'FLT-2026-008',
-    stationName: 'Pune Junction',
+    stationName: 'Comilla Railway Station',
     trackId: 'TR-009',
     faultType: 'Spike Failure',
     assignedTeam: 'Zeta Team',
-    engineer: 'Ananya Singh',
+    engineer: 'Roksana Khanam',
     progress: 100,
     status: 'completed',
     startTime: '2026-07-21T12:00:00',
@@ -395,7 +395,7 @@ export const MOCK_NOTIFICATIONS: Notification[] = [
   {
     id: 'n1',
     title: 'Critical Fault Detected',
-    message: 'Rail fracture detected on TR-011 at Howrah Junction. Immediate action required.',
+    message: 'Rail fracture detected on TR-011 at Khulna Railway Station. Immediate action required.',
     type: 'critical',
     time: '2026-07-22T07:14:22',
     read: false,
@@ -411,7 +411,7 @@ export const MOCK_NOTIFICATIONS: Notification[] = [
   {
     id: 'n3',
     title: 'Fault Resolved',
-    message: 'Joint gap excess on TR-012 at Mumbai Central has been fixed.',
+    message: 'Joint gap excess on TR-012 at Chattogram Central has been fixed.',
     type: 'success',
     time: '2026-07-21T23:45:00',
     read: true,
@@ -436,7 +436,7 @@ export const MOCK_NOTIFICATIONS: Notification[] = [
 
 export const DASHBOARD_STATS: DashboardStats = {
   totalStations: 8,
-  totalTracks: 124,
+  totalTracks: 112,
   activeFaults: 5,
   criticalFaults: 2,
   fixedToday: 2,
@@ -474,10 +474,10 @@ export const MONTHLY_STATS = [
 ];
 
 export const STATION_FAULT_DATA = [
-  { name: 'Howrah Jn', faults: 8 },
-  { name: 'New Delhi', faults: 4 },
-  { name: 'Hyderabad', faults: 3 },
-  { name: 'Mumbai', faults: 2 },
-  { name: 'Pune', faults: 1 },
+  { name: 'Khulna', faults: 8 },
+  { name: 'Kamalapur', faults: 4 },
+  { name: 'Mymensingh', faults: 3 },
+  { name: 'Chattogram', faults: 2 },
+  { name: 'Comilla', faults: 1 },
   { name: 'Others', faults: 2 },
 ];

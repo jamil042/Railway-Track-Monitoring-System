@@ -8,11 +8,11 @@ import { MdRadar, MdCheckCircle, MdWarning, MdDangerous } from 'react-icons/md';
 
 const PER_PAGE = 9;
 
-const STATUS_FILTERS: { label: string; value: TrackStatus | 'all'; icon: typeof MdCheckCircle; color: string }[] = [
-  { label: 'All', value: 'all', icon: MdRadar, color: 'text-slate-400' },
-  { label: 'Safe', value: 'safe', icon: MdCheckCircle, color: 'text-green-400' },
-  { label: 'Warning', value: 'warning', icon: MdWarning, color: 'text-yellow-400' },
-  { label: 'Critical', value: 'critical', icon: MdDangerous, color: 'text-red-400' },
+const STATUS_FILTERS: { label: string; value: TrackStatus | 'all'; icon: typeof MdCheckCircle; iconColor: string; bg: string; border: string }[] = [
+  { label: 'All Tracks', value: 'all', icon: MdRadar, iconColor: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-200' },
+  { label: 'Safe', value: 'safe', icon: MdCheckCircle, iconColor: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200' },
+  { label: 'Warning', value: 'warning', icon: MdWarning, iconColor: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-200' },
+  { label: 'Critical', value: 'critical', icon: MdDangerous, iconColor: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
 ];
 
 export default function Monitoring() {
@@ -46,8 +46,8 @@ export default function Monitoring() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-bold text-white">Live Railway Monitoring</h1>
-        <p className="text-slate-500 text-sm mt-0.5">Real-time track status across all stations</p>
+        <h1 className="text-xl font-bold text-slate-900">Live Railway Monitoring</h1>
+        <p className="text-slate-500 text-sm mt-0.5">Real-time track status across all Bangladesh Railway stations</p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -55,12 +55,12 @@ export default function Monitoring() {
           <button
             key={f.value}
             onClick={() => handleFilterChange(f.value)}
-            className={`bg-[#1E293B] border rounded-xl p-3 flex items-center gap-3 transition-all text-left ${statusFilter === f.value ? 'border-blue-500/50 bg-blue-500/5' : 'border-slate-700/50 hover:border-slate-600/50'}`}
+            className={`bg-white border rounded-xl p-3.5 flex items-center gap-3 transition-all text-left shadow-sm hover:shadow-md ${statusFilter === f.value ? `${f.bg} ${f.border} ring-2 ring-offset-1 ring-blue-200` : 'border-slate-200 hover:border-slate-300'}`}
           >
-            <f.icon className={`text-2xl ${f.color}`} />
+            <f.icon className={`text-2xl ${f.iconColor}`} />
             <div>
-              <p className="text-lg font-bold text-white">{counts[f.value]}</p>
-              <p className="text-xs text-slate-500">{f.label} Tracks</p>
+              <p className="text-xl font-bold text-slate-900">{counts[f.value]}</p>
+              <p className="text-xs text-slate-500">{f.label}</p>
             </div>
           </button>
         ))}
@@ -70,12 +70,12 @@ export default function Monitoring() {
         <div className="flex-1 max-w-sm">
           <SearchBar value={search} onChange={handleSearch} placeholder="Search by track ID or station..." />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {STATUS_FILTERS.map(f => (
             <button
               key={f.value}
               onClick={() => handleFilterChange(f.value)}
-              className={`px-3 py-2 rounded-xl text-xs font-medium transition-all border ${statusFilter === f.value ? 'bg-blue-600/20 border-blue-500/40 text-blue-400' : 'bg-slate-800/40 border-slate-700/40 text-slate-400 hover:border-slate-600/40'}`}
+              className={`px-3 py-2 rounded-xl text-xs font-medium transition-all border ${statusFilter === f.value ? 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-200' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'}`}
             >
               {f.label}
             </button>
@@ -84,7 +84,7 @@ export default function Monitoring() {
       </div>
 
       {paged.length === 0 ? (
-        <div className="text-center py-16 text-slate-500">
+        <div className="text-center py-16 text-slate-400 bg-white rounded-2xl border border-slate-200">
           <MdRadar className="text-4xl mx-auto mb-2 opacity-40" />
           <p>No tracks found matching your search.</p>
         </div>
