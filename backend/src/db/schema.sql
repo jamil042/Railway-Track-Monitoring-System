@@ -259,22 +259,31 @@ SELECT s.*,
          WHERE f.station_id = s.id AND f.status <> 'fixed') AS active_faults
   FROM stations s;
 
--- Dashboard headline stats (frontend DashboardStats)
+-- Dashboard headline stats (frontend DashboardStats).
+-- Fault counts come from LIVE track status, but a track only counts as a
+-- "live" track when it actually has a row in sensor_readings (telemetry stream).
+-- Seeded-but-idle tracks never touch this table, so they don't inflate numbers.
 CREATE VIEW v_dashboard_stats AS
 SELECT
     (SELECT COUNT(*) FROM stations)                          AS total_stations,
     (SELECT COUNT(*) FROM tracks)                            AS total_tracks,
-    (SELECT COUNT(*) FROM faults WHERE status <> 'fixed')    AS active_faults,
-    (SELECT COUNT(*) FROM faults
-      WHERE severity = 'critical' AND status <> 'fixed')     AS critical_faults,
+    (SELECT COUNT(*) FROM tracks t
+      WHERE EXISTS (SELECT 1 FROM sensor_readings sr WHERE sr.track_id = t.id)
+        AND t.status IN ('warning', 'critical'))             AS active_faults,
+    (SELECT COUNT(*) FROM tracks t
+      WHERE EXISTS (SELECT 1 FROM sensor_readings sr WHERE sr.track_id = t.id)
+        AND t.status = 'critical')                           AS critical_faults,
     (SELECT COUNT(*) FROM faults
       WHERE status = 'fixed' AND date(detection_time) = date('now')) AS fixed_today,
     (SELECT COUNT(*) FROM maintenance_tasks
       WHERE status IN ('pending', 'in_progress'))            AS under_maintenance,
     CASE
-        WHEN (SELECT COUNT(*) FROM faults
-               WHERE severity = 'critical' AND status <> 'fixed') > 0 THEN 'critical'
-        WHEN (SELECT COUNT(*) FROM faults WHERE status <> 'fixed') > 0 THEN 'degraded'
+        WHEN (SELECT COUNT(*) FROM tracks t
+               WHERE EXISTS (SELECT 1 FROM sensor_readings sr WHERE sr.track_id = t.id)
+                 AND t.status = 'critical') > 0 THEN 'critical'
+        WHEN (SELECT COUNT(*) FROM tracks t
+               WHERE EXISTS (SELECT 1 FROM sensor_readings sr WHERE sr.track_id = t.id)
+                 AND t.status = 'warning') > 0 THEN 'degraded'
         ELSE 'operational'
     END                                                      AS system_status;
 

@@ -259,22 +259,32 @@ SELECT s.*,
          WHERE f.station_id = s.id AND f.status <> 'fixed') AS active_faults
   FROM stations s;
 
--- Dashboard headline stats (frontend DashboardStats)
+-- Dashboard headline stats (frontend DashboardStats).
+-- Fault counts come from LIVE track status (updated by the sensor trigger),
+-- not from the static faults seed table — so the top cards move with telemetry.
+-- Only tracks that have received live telemetry (readings_updated_at set by
+-- the trigger) are counted, so seeded-but-idle tracks don't inflate the numbers.
 CREATE VIEW v_dashboard_stats AS
 SELECT
     (SELECT COUNT(*) FROM stations)                          AS total_stations,
     (SELECT COUNT(*) FROM tracks)                            AS total_tracks,
-    (SELECT COUNT(*) FROM faults WHERE status <> 'fixed')    AS active_faults,
-    (SELECT COUNT(*) FROM faults
-      WHERE severity = 'critical' AND status <> 'fixed')     AS critical_faults,
+    (SELECT COUNT(*) FROM tracks
+      WHERE readings_updated_at IS NOT NULL
+        AND status IN ('warning', 'critical'))               AS active_faults,
+    (SELECT COUNT(*) FROM tracks
+      WHERE readings_updated_at IS NOT NULL
+        AND status = 'critical')                             AS critical_faults,
     (SELECT COUNT(*) FROM faults
       WHERE status = 'fixed' AND date(detection_time) = date('now')) AS fixed_today,
     (SELECT COUNT(*) FROM maintenance_tasks
       WHERE status IN ('pending', 'in_progress'))            AS under_maintenance,
     CASE
-        WHEN (SELECT COUNT(*) FROM faults
-               WHERE severity = 'critical' AND status <> 'fixed') > 0 THEN 'critical'
-        WHEN (SELECT COUNT(*) FROM faults WHERE status <> 'fixed') > 0 THEN 'degraded'
+        WHEN (SELECT COUNT(*) FROM tracks
+               WHERE readings_updated_at IS NOT NULL
+                 AND status = 'critical') > 0 THEN 'critical'
+        WHEN (SELECT COUNT(*) FROM tracks
+               WHERE readings_updated_at IS NOT NULL
+                 AND status = 'warning') > 0 THEN 'degraded'
         ELSE 'operational'
     END                                                      AS system_status;
 
