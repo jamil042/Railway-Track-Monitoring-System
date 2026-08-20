@@ -12,7 +12,8 @@ logs/
 .claude-replay.*
 .tmp-*
 
-# Python cache
+# Python
+.venv/
 __pycache__/
 *.pyc
 # Pi local backup
