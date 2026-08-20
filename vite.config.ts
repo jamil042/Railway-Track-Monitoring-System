@@ -33,7 +33,7 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
       port: parseInt(process.env.PORT || '8443'),
       strictPort: true,
-      watch: { ignored: ['**/.figma/**'] },
+      watch: { ignored: ['**/.figma/**', '**/node_modules/**', '**/.venv/**'] },
       proxy: {
         '/api': {
           target: process.env.API_PROXY_TARGET || 'http://localhost:5000',

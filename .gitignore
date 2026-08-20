@@ -11,3 +11,8 @@ logs/
 *.log
 .claude-replay.*
 .tmp-*
+
+# Python
+.venv/
+__pycache__/
+*.pyc
