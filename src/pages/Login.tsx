@@ -46,7 +46,7 @@ export default function Login() {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4 shadow-xl shadow-blue-300/50">
             <MdTrain className="text-white text-3xl" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">RailGuard AI</h1>
+          <h1 className="text-2xl font-bold text-slate-900">RailGuard</h1>
           <p className="text-slate-500 text-sm mt-1">Bangladesh Railway Track Fault Detection System</p>
         </div>
 
