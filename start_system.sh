@@ -17,15 +17,18 @@ set -e
 # ============================ CONFIG — EGULA BOSHAO ==========================
 # Tomar actual folder path/start-command diye eguloke thik koro
 BACKEND_DIR="./backend"
-BACKEND_START_CMD="npm run dev"
+BACKEND_START_CMD="npm run dev"          # TODO: tomar backend jeta die start hoy
+                                          #   Node/Express hole: npm run dev / npm start
+                                          #   Django hole:      python manage.py runserver 0.0.0.0:5000
+                                          #   FastAPI hole:      uvicorn main:app --host 0.0.0.0 --port 5000
 
-FRONTEND_DIR="."                         # root folder (jekhane package.json + vite.config.ts)
-FRONTEND_START_CMD="npm run dev"         # vite.config.ts e already host:'0.0.0.0', port 8443
+FRONTEND_DIR="./frontend"
+FRONTEND_START_CMD="npm run dev -- --host 0.0.0.0"   # Vite dev server, LAN-e accessible
 
-HARDWARE_DIR="./hardware"                # camera_stream.py, sensor_fusion_dashboard.py ei folder-e
+RAILWAY_DIR="./railway"                  # camera_stream.py, sensor_fusion_dashboard.py ei folder-e
 # ==============================================================================
 
-# --- Pi-r nijer LAN IP auto-detect ---
+# --- Pi-r nijer LAN IP auto-detect kora hocche (multiple interface thakle first ta) ---
 PI_IP=$(hostname -I | awk '{print $1}')
 if [ -z "$PI_IP" ]; then
     echo "[WARN] Pi-r IP auto-detect kora jayni — 'hostname -I' diye nijer IP boshao."
@@ -37,11 +40,12 @@ echo "  RAILWAY MONITORING SYSTEM — CENTRAL LAUNCHER"
 echo "  Pi IP: $PI_IP"
 echo "===================================================="
 
-# --- Ashol bug fix: frontend API calls jeno Pi-r IP-e jay, localhost na ---
-# `src/api/client.ts` e ei env variable ta use korte hobe:
-#   const API_URL = import.meta.env.VITE_API_URL || '/api';
+# Frontend-er API call gula jeno Pi-r nijer localhost-er bodole ei IP-e jay,
+# sheijonno environment variable diye pathano hocche. Tomar api/ config file-e
+# eituku add koro (Vite hole):
+#   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 export VITE_API_URL="http://${PI_IP}:5000"
-echo "[ENV] VITE_API_URL=$VITE_API_URL"
+echo "[ENV] VITE_API_URL=$VITE_API_URL  (frontend-er api config-e eita use koro)"
 
 PIDS=()
 
@@ -69,23 +73,25 @@ start_process() {
 
 # 1. Backend
 start_process "backend" "$BACKEND_DIR" "$BACKEND_START_CMD"
-sleep 2
+sleep 2   # backend-ke port bind korar shamanyo shomoy dao
 
-# 2. Frontend (Vite dev server, already --host 0.0.0.0 in config)
+# 2. Frontend
 start_process "frontend" "$FRONTEND_DIR" "$FRONTEND_START_CMD"
 sleep 1
 
 # 3. Camera stream (camera-r ekmatro owner)
-start_process "camera_stream" "$HARDWARE_DIR" "python3 camera_stream.py --pi"
-sleep 2
+# Tomar external/USB camera ache bole "--pi" flag deya hoyni — USB webcam
+# default. Pi Camera Module use korle "python3 camera_stream.py --pi" koro.
+start_process "camera_stream" "$RAILWAY_DIR" "python3 camera_stream.py"
+sleep 2   # YOLO model load howar shomoy dao
 
 # 4. Sensor fusion (ESP32 serial + camera_stream theke detection poll)
-start_process "sensor_fusion" "$HARDWARE_DIR" "python3 sensor_fusion_dashboard.py"
+start_process "sensor_fusion" "$RAILWAY_DIR" "python3 sensor_fusion_dashboard.py"
 
 echo ""
 echo "===================================================="
 echo "  SHOB PROCESS CHALU — access koro:"
-echo "  Frontend      : http://${PI_IP}:8443"
+echo "  Frontend      : http://${PI_IP}:5173"
 echo "  Backend API   : http://${PI_IP}:5000"
 echo "  Camera stream : http://${PI_IP}:8081/stream"
 echo "===================================================="
