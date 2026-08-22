@@ -41,7 +41,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             <MdTrain className="text-white text-xl" />
           </div>
           <div>
-            <p className="text-sm font-bold text-slate-900 leading-tight">RailGuard AI</p>
+            <p className="text-sm font-bold text-slate-900 leading-tight">RailGuard</p>
             <p className="text-[10px] text-slate-400 uppercase tracking-widest">Fault Detection</p>
           </div>
         </div>
@@ -90,7 +90,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             <MdLogout className="text-lg" />
             Logout
           </button>
-          <p className="text-[10px] text-slate-400 text-center mt-3">v2.1.4 · RailGuard AI © 2026</p>
+          <p className="text-[10px] text-slate-400 text-center mt-3">v2.1.4 · RailGuard © 2026</p>
         </div>
       </aside>
     </>
