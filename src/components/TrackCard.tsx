@@ -7,6 +7,10 @@ interface TrackCardProps {
   track: Track;
 }
 
+// track.id / SensorReading.trackId মিলিয়ে, sensorType অনুযায়ী সবচেয়ে সাম্প্রতিক
+// reading-এর value বের করে। ESP32 -> sensor_fusion_dashboard.py -> POST
+// /api/sensor-readings পাইপলাইন থেকে "vibration" / "displacement" / "ir" sensorType
+// আসছে (দেখো sensor_fusion_dashboard.py-এর send_telemetry_to_backend)।
 function latestValue(readings: SensorReading[], trackId: string, sensorType: string): number | null {
   const matches = readings.filter(r => r.trackId === trackId && r.sensorType === sensorType);
   if (matches.length === 0) return null;
@@ -27,9 +31,11 @@ export default function TrackCard({ track }: TrackCardProps) {
     return d.toLocaleTimeString('en-BD', { hour: '2-digit', minute: '2-digit' });
   };
 
+  // --- Live hardware readings (fallback to backend/track value যদি এখনো কোনো ESP32
+  //     telemetry না এসে থাকে, যাতে card খালি না দেখায়) ---
   const liveVibration = latestValue(readings, track.id, 'vibration');
-  const liveDisplacement = latestValue(readings, track.id, 'displacement');
-  const liveObjectState = latestValue(readings, track.id, 'ir');
+  const liveDisplacement = latestValue(readings, track.id, 'ultrasonic');
+  const liveObjectState = latestValue(readings, track.id, 'ir_beam'); // 0 = obstacle/gap, 1 = clear, null = no data yet
 
   const vibrationDisplay = liveVibration ?? track.vibration;
   const displacementDisplay = liveDisplacement ?? track.displacement;
@@ -63,6 +69,8 @@ export default function TrackCard({ track }: TrackCardProps) {
         </div>
 
         <div className="grid grid-cols-3 gap-2 mb-3">
+          {/* আগে এখানে "Temp" ছিল — কোনো temperature sensor না থাকায় এখন IR sensor
+              এর object/obstacle detection status দেখানো হচ্ছে */}
           <div className={`border rounded-lg p-2 text-center ${objectDetected ? 'bg-red-50 border-red-100' : 'bg-orange-50 border-orange-100'}`}>
             <div className={`flex items-center justify-center mb-0.5 ${objectDetected ? 'text-red-500' : 'text-orange-500'}`}>
               <MdRadar className="text-sm" />
@@ -72,6 +80,8 @@ export default function TrackCard({ track }: TrackCardProps) {
           </div>
           <div className="bg-purple-50 border border-purple-100 rounded-lg p-2 text-center">
             <div className="flex items-center justify-center text-purple-500 mb-0.5"><MdSpeed className="text-sm" /></div>
+            {/* SW-420 আসলে digital pulse count দেয়, physical g-force না — তাই unit
+                "count" এ ঠিক করা হয়েছে (আগে ভুলভাবে "g" লেখা ছিল) */}
             <p className="text-xs font-semibold text-slate-800">{vibrationDisplay}</p>
             <p className="text-[10px] text-slate-400">Vibration</p>
           </div>

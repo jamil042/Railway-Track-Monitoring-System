@@ -204,8 +204,40 @@ def clear_screen():
 
 
 def draw_fused_dashboard(sensor_data, cam_result, scores, final_score, raw_status, confirmed_status):
-    # Terminal dashboard print na kore silently background-e chole — frontend theke dekho
-    pass
+    clear_screen()
+    C, R, B = COLORS["CYAN"], COLORS["RESET"], COLORS["BOLD"]
+    print(f"{C}{B}===================================================={R}")
+    print(f"{C}{B}   RAILWAY TRACK MONITORING — SENSOR FUSION DASHBOARD{R}")
+    print(f"{C}{B}===================================================={R}\n")
+
+    print(f"{B}[ Raw Sensor Data (ESP32) ]{R}")
+    print(f"  Vibration : V1={sensor_data.get('V1', 0)}  V2={sensor_data.get('V2', 0)}")
+    print(f"  IR        : I1={sensor_data.get('I1', 1)}  I2={sensor_data.get('I2', 1)}")
+    print(f"  Ultrasonic: U1={sensor_data.get('U1', 0.0):.1f}cm  U2={sensor_data.get('U2', 0.0):.1f}cm\n")
+
+    print(f"{B}[ Camera / YOLO ]{R}")
+    if cam_result:
+        print(f"  Top Defect : {cam_result.top_defect} (conf={cam_result.top_confidence:.2f})")
+        print(f"  Fasteners  : {cam_result.fastener_detected_count} detected "
+              f"({'MISSING!' if cam_result.missing_fastener else 'OK'})")
+    else:
+        print("  Waiting for first camera frame...")
+    print()
+
+    print(f"{B}[ Component Scores (0-100) ]{R}")
+    print(f"  AI (Camera)  : {scores['ai']:.1f}   (weight {WEIGHTS['ai']})")
+    print(f"  Vibration    : {scores['vibration']:.1f}   (weight {WEIGHTS['vibration']})")
+    print(f"  Distance     : {scores['distance']:.1f}   (weight {WEIGHTS['distance']})")
+    print(f"  IR           : {scores['ir']:.1f}   (weight {WEIGHTS['ir']})\n")
+
+    raw_color = COLORS.get(raw_status, "")
+    confirmed_color = COLORS.get(confirmed_status, "")
+    print(f"{B}FINAL FAULT SCORE: {final_score:.1f}/100{R}")
+    print(f"  Raw Status       : {raw_color}{raw_status}{R}  (this reading only)")
+    print(f"  Confirmed Status : {confirmed_color}{B}{confirmed_status}{R}  "
+          f"(after debounce — used for alerts)")
+    print(f"\n{C}===================================================={R}")
+    print("Press Ctrl+C to stop monitoring.")
 
 
 # ==================== Backend API Integration ====================
@@ -259,9 +291,15 @@ def send_telemetry_to_backend(sensor_data):
     """
     ESP32-এর raw sensor_data থেকে তিনটা reading তৈরি করে backend-এ পাঠায়, যেগুলো
     Monitoring.tsx-এর TrackCard তিনটা card-এ দেখায়:
-      - "vibration"    -> Vibration card (raw pulse count, unit "count")
-      - "displacement" -> Disp. card (baseline থেকে deviation, mm-এ কনভার্ট করা)
-      - "ir"            -> Object card (0 = obstacle/gap detected, 1 = clear)
+      - "vibration"  -> Vibration card (raw pulse count, unit "count")
+      - "ultrasonic" -> Disp. card (baseline থেকে deviation, mm-এ কনভার্ট করা)
+      - "ir_beam"    -> Object card (0 = obstacle/gap detected, 1 = clear)
+
+    NOTE: backend-এর types/index.ts + schema.sql-এ sensor_type কে CHECK
+    constraint দিয়ে শুধু ('ir_beam','ultrasonic','vibration','temperature','camera')
+    এই মানগুলোতে সীমাবদ্ধ রাখা হয়েছে — অন্য কোনো নাম পাঠালে DB insert silently
+    fail করবে (try/except-এর কারণে কোনো error ও দেখাবে না)। তাই এখানে ঠিক এই
+    নামগুলোই ব্যবহার করা হচ্ছে।
     """
     if not sensor_data:
         return
@@ -277,11 +315,11 @@ def send_telemetry_to_backend(sensor_data):
     if u_vals:
         avg_u = sum(u_vals) / len(u_vals)
         displacement_mm = round((avg_u - ULTRASONIC_NORMAL_CM) * 10, 1)  # cm deviation -> mm
-        readings.append({"sensorType": "displacement", "value": displacement_mm, "unit": "mm"})
+        readings.append({"sensorType": "ultrasonic", "value": displacement_mm, "unit": "mm"})
 
     if "I1" in sensor_data or "I2" in sensor_data:
         obstacle = 0 if (sensor_data.get("I1", 1) == 0 or sensor_data.get("I2", 1) == 0) else 1
-        readings.append({"sensorType": "ir", "value": obstacle, "unit": "state"})
+        readings.append({"sensorType": "ir_beam", "value": obstacle, "unit": "state"})
 
     for r in readings:
         try:
