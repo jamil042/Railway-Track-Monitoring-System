@@ -2,7 +2,8 @@
 sensor_fusion_dashboard.py
 ---------------------------
 pi_serial_test.py (ESP32 sensor থ্রেড) + yolo_detector.py (camera থ্রেড) — দুইটাকে
-একসাথে চালিয়ে final Fault Score / Status বের করে টার্মিনালে দেখায়।
+একসাথে চালিয়ে final Fault Score / Status বের করে টার্মিনালে দেখায়, এবং backend-এ
+telemetry + alert পাঠায় (Monitoring.tsx dashboard-এর জন্য)।
 
 Weight (proposal অনুযায়ী, পরে calibration data দিয়ে টিউন করবে):
     Final Score = AI×0.50 + Vibration×0.20 + Distance×0.15 + IR×0.15
@@ -25,6 +26,12 @@ from yolo_detector import CameraWorker
 # ==================== CONFIG ====================
 SERIAL_PORT = "/dev/ttyACM0"
 BAUD_RATE = 115200
+
+BACKEND_URL = "http://localhost:5000"
+DEVICE_ID = 1
+# এখন single-track prototype বলে হার্ডকোড করা — একাধিক track/ESP32 node হলে এখানে
+# device serial number অনুযায়ী trackId mapping বসাও
+TRACK_ID = "TR-001"
 
 # --- Calibration baselines (healthy-track data দিয়ে বসাও, proposal-এর সুপারিশ) ---
 ULTRASONIC_NORMAL_CM = 20.0
@@ -90,7 +97,6 @@ def score_vibration(v1, v2):
     if v >= VIBRATION_EMERGENCY_COUNT:
         return 100.0
     if v >= VIBRATION_WARNING_COUNT:
-        # WARNING_COUNT..EMERGENCY_COUNT রেঞ্জে লিনিয়ার স্কেল করা হচ্ছে
         span = VIBRATION_EMERGENCY_COUNT - VIBRATION_WARNING_COUNT
         return 30 + 70 * (v - VIBRATION_WARNING_COUNT) / max(span, 1)
     return 30 * (v / max(VIBRATION_WARNING_COUNT, 1))
@@ -110,7 +116,6 @@ def score_distance(u1, u2):
 
 
 def score_ir(i1, i2):
-    # IR=0 মানে beam ব্লক/গ্যাপ ডিটেক্টেড (fault), IR=1 মানে ক্লিয়ার
     faults = sum(1 for i in (i1, i2) if i == 0)
     return {0: 0.0, 1: 60.0, 2: 100.0}[faults]
 
@@ -126,8 +131,7 @@ class StatusDebouncer:
     """
     Raw status প্রতি reading-এ ওঠানামা করলেও, শুধু consecutive reading-এ
     DEBOUNCE_COUNT[label] বার একই বা বেশি severe status এলে তবেই confirmed
-    status আপডেট হয়। NORMAL-এ নামার ক্ষেত্রে debounce লাগে না (তাড়াতাড়ি safe
-    অবস্থায় ফিরে আসা উচিত)।
+    status আপডেট হয়। NORMAL-এ নামার ক্ষেত্রে debounce লাগে না।
     """
 
     def __init__(self):
@@ -204,16 +208,15 @@ def draw_fused_dashboard(sensor_data, cam_result, scores, final_score, raw_statu
 # ==================== Backend API Integration ====================
 def send_alert_to_backend(confirmed_status, cam_result, sensor_data, final_score):
     try:
-        # 1. Login to get token (using default admin credentials for prototype)
-        login_resp = requests.post("http://localhost:5000/api/auth/login", json={
+        login_resp = requests.post(f"{BACKEND_URL}/api/auth/login", json={
             "username": "admin",
             "password": "admin123"
         }, timeout=3)
         login_resp.raise_for_status()
         token = login_resp.json().get("token")
-        
+
         headers = {"Authorization": f"Bearer {token}"}
-        
+
         severity = "critical" if confirmed_status == "EMERGENCY" else "high"
         fault_type = "Multiple Issues"
         if cam_result and getattr(cam_result, 'top_defect', None) and cam_result.top_defect != "None":
@@ -221,10 +224,9 @@ def send_alert_to_backend(confirmed_status, cam_result, sensor_data, final_score
         elif final_score > 50:
             fault_type = "Sensor Anomaly"
 
-        # 2. Create Fault
         fault_payload = {
             "stationId": "st1",
-            "trackId": "TR-001",
+            "trackId": TRACK_ID,
             "faultType": fault_type,
             "severity": severity,
             "status": "active",
@@ -232,42 +234,62 @@ def send_alert_to_backend(confirmed_status, cam_result, sensor_data, final_score
             "sensorValues": sensor_data,
             "description": f"Auto-detected by sensor fusion. Score: {final_score:.1f}/100"
         }
-        fault_resp = requests.post("http://localhost:5000/api/faults", json=fault_payload, headers=headers, timeout=3)
+        fault_resp = requests.post(f"{BACKEND_URL}/api/faults", json=fault_payload, headers=headers, timeout=3)
         fault_resp.raise_for_status()
         fault_id = fault_resp.json().get("id")
-        
-        # 3. Create Alert
+
         alert_payload = {
             "faultId": fault_id,
-            "deviceId": 1,
+            "deviceId": DEVICE_ID,
             "destination": "station_display",
             "channel": "lora",
-            "message": f"{confirmed_status} Alert: {fault_type} detected on track TR-001",
+            "message": f"{confirmed_status} Alert: {fault_type} detected on track {TRACK_ID}",
             "severity": severity
         }
-        requests.post("http://localhost:5000/api/alerts", json=alert_payload, headers=headers, timeout=3)
-        
-    except Exception as e:
-        pass # Silently fail if backend is not running during prototype
+        requests.post(f"{BACKEND_URL}/api/alerts", json=alert_payload, headers=headers, timeout=3)
+
+    except Exception:
+        pass  # Silently fail if backend is not running during prototype
 
 
 def send_telemetry_to_backend(sensor_data):
+    """
+    ESP32-এর raw sensor_data থেকে তিনটা reading তৈরি করে backend-এ পাঠায়, যেগুলো
+    Monitoring.tsx-এর TrackCard তিনটা card-এ দেখায়:
+      - "vibration"    -> Vibration card (raw pulse count, unit "count")
+      - "displacement" -> Disp. card (baseline থেকে deviation, mm-এ কনভার্ট করা)
+      - "ir"            -> Object card (0 = obstacle/gap detected, 1 = clear)
+    """
     if not sensor_data:
         return
-    try:
-        now = datetime.utcnow().isoformat() + "Z"
-        # Sending a vibration sample as a representative telemetry push.
-        if "V1" in sensor_data:
-            requests.post("http://localhost:5000/api/sensor-readings", json={
-                "deviceId": 1,
-                "trackId": "TR-001",
-                "sensorType": "vibration",
-                "value": float(sensor_data["V1"]),
-                "unit": "count",
-                "recordedAt": now
+
+    now = datetime.utcnow().isoformat() + "Z"
+    readings = []
+
+    if "V1" in sensor_data or "V2" in sensor_data:
+        vib = max(sensor_data.get("V1", 0), sensor_data.get("V2", 0))
+        readings.append({"sensorType": "vibration", "value": float(vib), "unit": "count"})
+
+    u_vals = [v for v in (sensor_data.get("U1"), sensor_data.get("U2")) if v and v > 0]
+    if u_vals:
+        avg_u = sum(u_vals) / len(u_vals)
+        displacement_mm = round((avg_u - ULTRASONIC_NORMAL_CM) * 10, 1)
+        readings.append({"sensorType": "displacement", "value": displacement_mm, "unit": "mm"})
+
+    if "I1" in sensor_data or "I2" in sensor_data:
+        obstacle = 0 if (sensor_data.get("I1", 1) == 0 or sensor_data.get("I2", 1) == 0) else 1
+        readings.append({"sensorType": "ir", "value": obstacle, "unit": "state"})
+
+    for r in readings:
+        try:
+            requests.post(f"{BACKEND_URL}/api/sensor-readings", json={
+                "deviceId": DEVICE_ID,
+                "trackId": TRACK_ID,
+                "recordedAt": now,
+                **r,
             }, timeout=1)
-    except Exception:
-        pass
+        except Exception:
+            pass
 
 
 # ==================== Main loop ====================
@@ -299,11 +321,9 @@ def main():
             draw_fused_dashboard(sensor_data, cam_result, scores, final_score,
                                   raw_status, confirmed_status)
 
-            # Send continuous telemetry to backend
+            # Send continuous telemetry to backend (vibration + displacement + ir)
             threading.Thread(target=send_telemetry_to_backend, args=(sensor_data,), daemon=True).start()
 
-            # confirmed_status বদলে EMERGENCY/WARNING হলেই একবার alert ট্রিগার করো
-            # (debounce এর কারণে বারবার একই অ্যালার্ম পাঠাবে না)
             if confirmed_status != prev_confirmed and confirmed_status in ("WARNING", "EMERGENCY"):
                 threading.Thread(
                     target=send_alert_to_backend,
