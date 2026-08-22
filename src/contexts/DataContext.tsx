@@ -71,6 +71,8 @@ const DataContext = createContext<DataContextValue | null>(null);
 
 const TYPE_COLORS = ['#DC2626', '#F59E0B', '#EF4444', '#3B82F6', '#8B5CF6', '#6B7280'];
 
+const LIVE_POLL_INTERVAL_MS = 3000;
+
 const shortName = (full: string) => full.split(' ')[0];
 
 const EMPTY_STATS: DashboardStats = {
@@ -159,13 +161,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     refresh();
 
-    // Live telemetry: re-fetch silently every ~1.5s so new sensor readings turn
-    // the cards around as fast as the ~500ms ESP32 stream allows.
-    const poll = setInterval(() => {
+    const interval = setInterval(() => {
       refresh(true);
-    }, 1500);
+    }, LIVE_POLL_INTERVAL_MS);
 
-    return () => clearInterval(poll);
+    return () => clearInterval(interval);
   }, [refresh]);
 
   const updateTask = async (id: string, data: Partial<MaintenanceTask>) => {

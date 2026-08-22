@@ -21,7 +21,42 @@ from datetime import datetime
 import requests
 import serial
 
-from yolo_detector import CameraWorker
+# আগে এখানে yolo_detector.py-এর CameraWorker চালিয়ে এই স্ক্রিপ্ট নিজেই camera খুলত।
+# কিন্তু camera_stream.py-ও একই camera খুলতে চায় (browser stream + YOLO overlay
+# দেখানোর জন্য) — Pi-র camera একবারে একজন-ই ব্যবহার করতে পারে, তাই দুটো প্রসেস
+# একসাথে চললে conflict হতো। এখন camera_stream.py-কেই একমাত্র camera-owner রাখা
+# হয়েছে; এই স্ক্রিপ্ট শুধু তার /detection endpoint থেকে HTTP দিয়ে সর্বশেষ
+# detection result নিয়ে আসে।
+CAMERA_STREAM_URL = "http://localhost:8081"
+
+
+class SimpleCamResult:
+    """camera_stream.py-এর /detection JSON কে yolo_detector.DetectionResult-এর
+    মতো attribute access দেয়, যাতে draw_fused_dashboard()/send_alert_to_backend()
+    কোনো পরিবর্তন ছাড়াই কাজ করে।"""
+
+    def __init__(self, data: dict):
+        self.timestamp = data.get("timestamp", 0)
+        self.ai_score = data.get("ai_score", 0.0)
+        self.ai_status = data.get("ai_status", "NORMAL")
+        self.top_defect = data.get("top_defect")
+        self.top_confidence = data.get("top_confidence", 0.0)
+        self.fastener_detected_count = data.get("fastener_detected_count", 0)
+        self.missing_fastener = data.get("missing_fastener", False)
+
+
+def fetch_camera_detection():
+    """camera_stream.py চালু না থাকলে/আগে detection না হয়ে থাকলে None রিটার্ন করে —
+    dashboard তখন AI score=0 ধরে বাকি সেন্সর দিয়েই চলতে থাকবে।"""
+    try:
+        resp = requests.get(f"{CAMERA_STREAM_URL}/detection", timeout=1)
+        resp.raise_for_status()
+        data = resp.json()
+        if not data.get("available"):
+            return None
+        return SimpleCamResult(data)
+    except Exception:
+        return None
 
 # ==================== CONFIG ====================
 SERIAL_PORT = "/dev/ttyACM0"
@@ -169,40 +204,8 @@ def clear_screen():
 
 
 def draw_fused_dashboard(sensor_data, cam_result, scores, final_score, raw_status, confirmed_status):
-    clear_screen()
-    C, R, B = COLORS["CYAN"], COLORS["RESET"], COLORS["BOLD"]
-    print(f"{C}{B}===================================================={R}")
-    print(f"{C}{B}   RAILWAY TRACK MONITORING — SENSOR FUSION DASHBOARD{R}")
-    print(f"{C}{B}===================================================={R}\n")
-
-    print(f"{B}[ Raw Sensor Data (ESP32) ]{R}")
-    print(f"  Vibration : V1={sensor_data.get('V1', 0)}  V2={sensor_data.get('V2', 0)}")
-    print(f"  IR        : I1={sensor_data.get('I1', 1)}  I2={sensor_data.get('I2', 1)}")
-    print(f"  Ultrasonic: U1={sensor_data.get('U1', 0.0):.1f}cm  U2={sensor_data.get('U2', 0.0):.1f}cm\n")
-
-    print(f"{B}[ Camera / YOLO ]{R}")
-    if cam_result:
-        print(f"  Top Defect : {cam_result.top_defect} (conf={cam_result.top_confidence:.2f})")
-        print(f"  Fasteners  : {cam_result.fastener_detected_count} detected "
-              f"({'MISSING!' if cam_result.missing_fastener else 'OK'})")
-    else:
-        print("  Waiting for first camera frame...")
-    print()
-
-    print(f"{B}[ Component Scores (0-100) ]{R}")
-    print(f"  AI (Camera)  : {scores['ai']:.1f}   (weight {WEIGHTS['ai']})")
-    print(f"  Vibration    : {scores['vibration']:.1f}   (weight {WEIGHTS['vibration']})")
-    print(f"  Distance     : {scores['distance']:.1f}   (weight {WEIGHTS['distance']})")
-    print(f"  IR           : {scores['ir']:.1f}   (weight {WEIGHTS['ir']})\n")
-
-    raw_color = COLORS.get(raw_status, "")
-    confirmed_color = COLORS.get(confirmed_status, "")
-    print(f"{B}FINAL FAULT SCORE: {final_score:.1f}/100{R}")
-    print(f"  Raw Status       : {raw_color}{raw_status}{R}  (this reading only)")
-    print(f"  Confirmed Status : {confirmed_color}{B}{confirmed_status}{R}  "
-          f"(after debounce — used for alerts)")
-    print(f"\n{C}===================================================={R}")
-    print("Press Ctrl+C to stop monitoring.")
+    # Terminal dashboard print na kore silently background-e chole — frontend theke dekho
+    pass
 
 
 # ==================== Backend API Integration ====================
@@ -273,7 +276,7 @@ def send_telemetry_to_backend(sensor_data):
     u_vals = [v for v in (sensor_data.get("U1"), sensor_data.get("U2")) if v and v > 0]
     if u_vals:
         avg_u = sum(u_vals) / len(u_vals)
-        displacement_mm = round((avg_u - ULTRASONIC_NORMAL_CM) * 10, 1)
+        displacement_mm = round((avg_u - ULTRASONIC_NORMAL_CM) * 10, 1)  # cm deviation -> mm
         readings.append({"sensorType": "displacement", "value": displacement_mm, "unit": "mm"})
 
     if "I1" in sensor_data or "I2" in sensor_data:
@@ -297,8 +300,8 @@ def main():
     serial_worker = SerialWorker()
     serial_worker.start()
 
-    camera_worker = CameraWorker(interval=0.8, show_window=False)
-    camera_worker.start()
+    print(f"[Camera] Reading detections from {CAMERA_STREAM_URL}/detection "
+          f"(camera_stream.py আলাদা করে চালু থাকতে হবে)")
 
     debouncer = StatusDebouncer()
     prev_confirmed = "NORMAL"
@@ -306,7 +309,7 @@ def main():
     try:
         while True:
             sensor_data = serial_worker.get_latest()
-            cam_result = camera_worker.get_latest()
+            cam_result = fetch_camera_detection()
 
             ai_score = cam_result.ai_score if cam_result else 0.0
             vib_score = score_vibration(sensor_data.get("V1", 0), sensor_data.get("V2", 0))
@@ -337,7 +340,6 @@ def main():
         print("\n\nMonitoring stopped by user.")
     finally:
         serial_worker.stop()
-        camera_worker.stop()
 
 
 if __name__ == "__main__":
