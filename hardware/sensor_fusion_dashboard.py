@@ -15,7 +15,9 @@ import json
 import os
 import threading
 import time
+from datetime import datetime
 
+import requests
 import serial
 
 from yolo_detector import CameraWorker
@@ -199,6 +201,75 @@ def draw_fused_dashboard(sensor_data, cam_result, scores, final_score, raw_statu
     print("Press Ctrl+C to stop monitoring.")
 
 
+# ==================== Backend API Integration ====================
+def send_alert_to_backend(confirmed_status, cam_result, sensor_data, final_score):
+    try:
+        # 1. Login to get token (using default admin credentials for prototype)
+        login_resp = requests.post("http://localhost:5000/api/auth/login", json={
+            "username": "admin",
+            "password": "admin123"
+        }, timeout=3)
+        login_resp.raise_for_status()
+        token = login_resp.json().get("token")
+        
+        headers = {"Authorization": f"Bearer {token}"}
+        
+        severity = "critical" if confirmed_status == "EMERGENCY" else "high"
+        fault_type = "Multiple Issues"
+        if cam_result and getattr(cam_result, 'top_defect', None) and cam_result.top_defect != "None":
+            fault_type = cam_result.top_defect
+        elif final_score > 50:
+            fault_type = "Sensor Anomaly"
+
+        # 2. Create Fault
+        fault_payload = {
+            "stationId": "st1",
+            "trackId": "TR-001",
+            "faultType": fault_type,
+            "severity": severity,
+            "status": "active",
+            "aiConfidence": float(cam_result.top_confidence * 100) if cam_result and getattr(cam_result, 'top_confidence', None) else 0.0,
+            "sensorValues": sensor_data,
+            "description": f"Auto-detected by sensor fusion. Score: {final_score:.1f}/100"
+        }
+        fault_resp = requests.post("http://localhost:5000/api/faults", json=fault_payload, headers=headers, timeout=3)
+        fault_resp.raise_for_status()
+        fault_id = fault_resp.json().get("id")
+        
+        # 3. Create Alert
+        alert_payload = {
+            "faultId": fault_id,
+            "deviceId": 1,
+            "destination": "station_display",
+            "channel": "lora",
+            "message": f"{confirmed_status} Alert: {fault_type} detected on track TR-001",
+            "severity": severity
+        }
+        requests.post("http://localhost:5000/api/alerts", json=alert_payload, headers=headers, timeout=3)
+        
+    except Exception as e:
+        pass # Silently fail if backend is not running during prototype
+
+
+def send_telemetry_to_backend(sensor_data):
+    if not sensor_data:
+        return
+    try:
+        now = datetime.utcnow().isoformat() + "Z"
+        # Sending a vibration sample as a representative telemetry push.
+        if "V1" in sensor_data:
+            requests.post("http://localhost:5000/api/sensor-readings", json={
+                "deviceId": 1,
+                "trackId": "TR-001",
+                "sensorType": "vibration",
+                "value": float(sensor_data["V1"]),
+                "unit": "count",
+                "recordedAt": now
+            }, timeout=1)
+    except Exception:
+        pass
+
+
 # ==================== Main loop ====================
 def main():
     serial_worker = SerialWorker()
@@ -228,11 +299,17 @@ def main():
             draw_fused_dashboard(sensor_data, cam_result, scores, final_score,
                                   raw_status, confirmed_status)
 
+            # Send continuous telemetry to backend
+            threading.Thread(target=send_telemetry_to_backend, args=(sensor_data,), daemon=True).start()
+
             # confirmed_status বদলে EMERGENCY/WARNING হলেই একবার alert ট্রিগার করো
             # (debounce এর কারণে বারবার একই অ্যালার্ম পাঠাবে না)
             if confirmed_status != prev_confirmed and confirmed_status in ("WARNING", "EMERGENCY"):
-                pass  # TODO: এখানে REST API/LoRa module-এ alert packet পাঠানোর কল বসাও
-                       #       (fault type = cam_result.top_defect, location, timestamp সহ)
+                threading.Thread(
+                    target=send_alert_to_backend,
+                    args=(confirmed_status, cam_result, sensor_data, final_score),
+                    daemon=True
+                ).start()
             prev_confirmed = confirmed_status
 
             time.sleep(FUSION_INTERVAL)
