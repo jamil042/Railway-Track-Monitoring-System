@@ -2,6 +2,9 @@
 camera_stream.py
 ----------------
 Flask MJPEG streaming server — browser থেকে live camera + YOLO detection দেখা যাবে।
+এখন এটাই **একমাত্র প্রসেস যেটা camera খোলে** — sensor_fusion_dashboard.py আর নিজে
+camera খোলে না, বরং এই স্ক্রিপ্টের /detection endpoint থেকে HTTP দিয়ে সর্বশেষ
+detection result নিয়ে আসে। এতে দুইটা প্রসেস একসাথে camera-এর জন্য conflict করবে না।
 
 Usage:
     source ../.venv/bin/activate
@@ -10,8 +13,9 @@ Usage:
     python3 camera_stream.py --no-detect           # raw, detection ছাড়া
     python3 camera_stream.py --port 8081           # custom port
 
-Browser: http://<ip>:8081/stream   (MJPEG stream)
-         http://<ip>:8081/         (preview page)
+Browser: http://<ip>:8081/stream      (MJPEG stream)
+         http://<ip>:8081/            (preview page)
+         http://<ip>:8081/detection   (JSON — sensor_fusion_dashboard.py এটা পড়ে)
 """
 
 import argparse
@@ -19,7 +23,7 @@ import time
 import threading
 
 import cv2
-from flask import Flask, Response, render_template_string
+from flask import Flask, Response, jsonify, render_template_string
 
 from yolo_detector import YOLODetector, MODEL_PATH
 
@@ -27,11 +31,13 @@ app = Flask(__name__)
 
 detector: YOLODetector | None = None
 latest_frame = None
+latest_result = None          # সর্বশেষ DetectionResult (detection চালু থাকলে)
 frame_lock = threading.Lock()
+result_lock = threading.Lock()
 
 
 def capture_loop(use_pi: bool, do_detect: bool, model_path: str):
-    global detector, latest_frame
+    global detector, latest_frame, latest_result
 
     if do_detect:
         detector = YOLODetector(model_path=model_path)
@@ -69,6 +75,8 @@ def capture_loop(use_pi: bool, do_detect: bool, model_path: str):
             status_line = f"AI:{result.ai_score:.0f} [{result.ai_status}] {result.top_defect or '-'}"
             cv2.putText(frame, status_line, (10, 25), cv2.FONT_HERSHEY_SIMPLEX,
                         0.6, (0, 255, 0), 2)
+            with result_lock:
+                latest_result = result
 
         _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
         with frame_lock:
@@ -115,6 +123,30 @@ def stream():
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
+@app.route('/detection')
+def detection():
+    """
+    sensor_fusion_dashboard.py এই endpoint poll করে ai_score/ai_status/top_defect
+    নিয়ে যায় — এতে ওই স্ক্রিপ্টের নিজের camera খোলার দরকার হয় না।
+    """
+    with result_lock:
+        result = latest_result
+
+    if result is None:
+        return jsonify({"available": False})
+
+    return jsonify({
+        "available": True,
+        "timestamp": result.timestamp,
+        "ai_score": result.ai_score,
+        "ai_status": result.ai_status,
+        "top_defect": result.top_defect,
+        "top_confidence": result.top_confidence,
+        "fastener_detected_count": result.fastener_detected_count,
+        "missing_fastener": result.missing_fastener,
+    })
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--pi', action='store_true')
@@ -129,4 +161,5 @@ if __name__ == '__main__':
     t.start()
 
     print(f"[STREAM] http://0.0.0.0:{args.port}/stream")
+    print(f"[STREAM] http://0.0.0.0:{args.port}/detection  (JSON, sensor_fusion_dashboard.py পড়বে)")
     app.run(host='0.0.0.0', port=args.port, threaded=True)

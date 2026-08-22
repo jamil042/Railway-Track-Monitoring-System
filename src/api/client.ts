@@ -19,7 +19,8 @@ export function clearAuth(): void {
   localStorage.removeItem(AUTH_KEY);
 }
 
-const api = axios.create({ baseURL: '/api' });
+const API_URL = import.meta.env.VITE_API_URL || '/api';
+const api = axios.create({ baseURL: API_URL });
 
 api.interceptors.request.use((config) => {
   const auth = getStoredAuth();

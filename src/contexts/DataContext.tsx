@@ -71,7 +71,7 @@ const DataContext = createContext<DataContextValue | null>(null);
 
 const TYPE_COLORS = ['#DC2626', '#F59E0B', '#EF4444', '#3B82F6', '#8B5CF6', '#6B7280'];
 
-const LIVE_POLL_INTERVAL_MS = 5000;
+const LIVE_POLL_INTERVAL_MS = 3000;
 
 const shortName = (full: string) => full.split(' ')[0];
 
