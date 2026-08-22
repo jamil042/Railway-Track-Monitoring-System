@@ -71,6 +71,8 @@ const DataContext = createContext<DataContextValue | null>(null);
 
 const TYPE_COLORS = ['#DC2626', '#F59E0B', '#EF4444', '#3B82F6', '#8B5CF6', '#6B7280'];
 
+const LIVE_POLL_INTERVAL_MS = 5000;
+
 const shortName = (full: string) => full.split(' ')[0];
 
 const EMPTY_STATS: DashboardStats = {
@@ -158,6 +160,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     refresh();
+
+    const interval = setInterval(() => {
+      refresh(true);
+    }, LIVE_POLL_INTERVAL_MS);
+
+    return () => clearInterval(interval);
   }, [refresh]);
 
   const updateTask = async (id: string, data: Partial<MaintenanceTask>) => {
