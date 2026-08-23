@@ -8,7 +8,10 @@ const SELECT = `
          installed_at AS installedAt, last_heartbeat AS lastHeartbeat
   FROM devices`
 
-export function listDevices(): Device[] {
+export function listDevices(stationId?: string | null): Device[] {
+  if (stationId) {
+    return db.prepare(`${SELECT} WHERE station_id = ? ORDER BY id`).all(stationId) as Device[]
+  }
   return db.prepare(`${SELECT} ORDER BY id`).all() as Device[]
 }
 

@@ -11,6 +11,7 @@ export interface ReadingFilters {
   deviceId?: number
   trackId?: string
   sensorType?: string
+  stationId?: string
   limit?: number
 }
 
@@ -29,6 +30,13 @@ export function listReadings(filters: ReadingFilters = {}): SensorReading[] {
   if (filters.sensorType) {
     where.push('sensor_type = @sensorType')
     params.sensorType = filters.sensorType
+  }
+  if (filters.stationId) {
+    // Station scope: only readings of tracks belonging to this station
+    where.push(
+      'track_id IN (SELECT id FROM tracks WHERE station_id = @stationId)',
+    )
+    params.stationId = filters.stationId
   }
 
   const sql = `${SELECT} ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY recordedAt DESC LIMIT @limit`

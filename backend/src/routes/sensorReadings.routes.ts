@@ -1,16 +1,18 @@
 import { Router } from 'express'
 import * as readings from '../services/sensorReadings.service.js'
 import { ApiError } from '../middleware/errorHandler.js'
+import { authenticate, type AuthRequest, scopedStationId } from '../middleware/auth.js'
 
 const router = Router()
 
-router.get('/', (req, res) => {
+router.get('/', authenticate, (req: AuthRequest, res) => {
   const { deviceId, trackId, sensorType, limit } = req.query as Record<string, string | undefined>
   res.json(
     readings.listReadings({
       deviceId: deviceId ? Number(deviceId) : undefined,
       trackId,
       sensorType,
+      stationId: scopedStationId(req) ?? undefined,
       limit: limit ? Number(limit) : undefined,
     }),
   )

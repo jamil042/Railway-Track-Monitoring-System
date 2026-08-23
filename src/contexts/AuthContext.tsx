@@ -6,7 +6,7 @@ import { clearAuth, getStoredAuth, storeAuth } from '../api/client';
 
 interface AuthContextType {
   user: User | null;
-  login: (username: string, password: string) => Promise<'ok' | 'invalid' | 'unreachable'>;
+  login: (role: string, username: string | null, stationId: string | null, password: string) => Promise<'ok' | 'invalid' | 'unreachable'>;
   logout: () => void;
   isAuthenticated: boolean;
 }
@@ -16,9 +16,9 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => (getStoredAuth()?.user as User | undefined) ?? null);
 
-  const login = async (username: string, password: string): Promise<'ok' | 'invalid' | 'unreachable'> => {
+  const login = async (role: string, username: string | null, stationId: string | null, password: string): Promise<'ok' | 'invalid' | 'unreachable'> => {
     try {
-      const { token, user } = await authApi.login(username, password);
+      const { token, user } = await authApi.login(role, username, stationId, password);
       storeAuth({ token, user });
       setUser(user);
       return 'ok';

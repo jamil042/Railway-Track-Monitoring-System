@@ -16,8 +16,8 @@ const unwrap = <T>(p: Promise<{ data: T }>): Promise<T> => p.then(r => r.data);
 
 // ---- Auth ----
 export const authApi = {
-  login: (username: string, password: string) =>
-    unwrap(api.post<{ token: string; user: User }>('/auth/login', { username, password })),
+  login: (role: string, username: string | null, stationId: string | null, password: string) =>
+    unwrap(api.post<{ token: string; user: User }>('/auth/login', { role, username, stationId, password })),
   me: () => unwrap(api.get<{ user: User }>('/auth/me')).then(r => r.user),
   updateProfile: (data: { name?: string; email?: string }) =>
     unwrap(api.put<{ token: string; user: User }>('/auth/profile', data)),

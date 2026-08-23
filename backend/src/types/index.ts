@@ -8,6 +8,7 @@ export interface User {
   email?: string
   avatar?: string
   station?: string
+  stationId?: string
 }
 
 export type FaultSeverity = 'critical' | 'high' | 'medium' | 'low'

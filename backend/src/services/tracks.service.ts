@@ -10,7 +10,10 @@ const SELECT = `
          ir_blocked AS irBlocked
   FROM v_track_with_station`
 
-export function listTracks(): Track[] {
+export function listTracks(stationId?: string | null): Track[] {
+  if (stationId) {
+    return db.prepare(`${SELECT} WHERE station_id = ? ORDER BY id`).all(stationId) as Track[]
+  }
   return db.prepare(`${SELECT} ORDER BY id`).all() as Track[]
 }
 

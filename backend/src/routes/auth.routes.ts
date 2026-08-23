@@ -6,9 +6,14 @@ import { ApiError } from '../middleware/errorHandler.js'
 const router = Router()
 
 router.post('/login', (req, res) => {
-  const { username, password } = (req.body ?? {}) as { username?: string; password?: string }
-  if (!username || !password) throw new ApiError(400, 'username and password are required')
-  res.json(authService.login(String(username), String(password)))
+  const { role, username, stationId, password } = (req.body ?? {}) as {
+    role?: string
+    username?: string
+    stationId?: string
+    password?: string
+  }
+  if (!role || !password) throw new ApiError(400, 'role and password are required')
+  res.json(authService.login(String(role), username ? String(username) : null, stationId ? String(stationId) : null, String(password)))
 })
 
 router.get('/me', authenticate, (req: AuthRequest, res) => {

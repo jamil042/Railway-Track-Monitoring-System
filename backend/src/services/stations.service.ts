@@ -6,7 +6,10 @@ const SELECT = `
   SELECT id, name, location, total_tracks AS totalTracks, status, active_faults AS activeFaults
   FROM v_station_summary`
 
-export function listStations(): Station[] {
+export function listStations(stationId?: string | null): Station[] {
+  if (stationId) {
+    return db.prepare(`${SELECT} WHERE id = ? ORDER BY name`).all(stationId) as Station[]
+  }
   return db.prepare(`${SELECT} ORDER BY name`).all() as Station[]
 }
 

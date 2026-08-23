@@ -1,26 +1,27 @@
 import { Router } from 'express'
 import * as tracks from '../services/tracks.service.js'
-import { authenticate } from '../middleware/auth.js'
+import { authenticate, type AuthRequest, scopedStationId, requireAdmin } from '../middleware/auth.js'
 
 const router = Router()
 
-router.get('/', (_req, res) => {
-  res.json(tracks.listTracks())
+// Non-admin users only see their own station's tracks
+router.get('/', authenticate, (req: AuthRequest, res) => {
+  res.json(tracks.listTracks(scopedStationId(req)))
 })
 
-router.get('/:id', (req, res) => {
+router.get('/:id', authenticate, (req: AuthRequest, res) => {
   res.json(tracks.getTrack(String(req.params.id)))
 })
 
-router.post('/', authenticate, (req, res) => {
+router.post('/', authenticate, requireAdmin, (req, res) => {
   res.status(201).json(tracks.createTrack(req.body ?? {}))
 })
 
-router.put('/:id', authenticate, (req, res) => {
+router.put('/:id', authenticate, requireAdmin, (req, res) => {
   res.json(tracks.updateTrack(String(req.params.id), req.body ?? {}))
 })
 
-router.delete('/:id', authenticate, (req, res) => {
+router.delete('/:id', authenticate, requireAdmin, (req, res) => {
   tracks.deleteTrack(String(req.params.id))
   res.status(204).end()
 })

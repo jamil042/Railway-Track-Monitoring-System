@@ -71,7 +71,7 @@ const DataContext = createContext<DataContextValue | null>(null);
 
 const TYPE_COLORS = ['#DC2626', '#F59E0B', '#EF4444', '#3B82F6', '#8B5CF6', '#6B7280'];
 
-const LIVE_POLL_INTERVAL_MS = 3000;
+const LIVE_POLL_INTERVAL_MS = 1500;
 
 const shortName = (full: string) => full.split(' ')[0];
 
@@ -133,7 +133,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         maintenanceApi.list(),
         notificationsApi.list(),
         devicesApi.list(),
-        sensorReadingsApi.list({ limit: 100 }),
+        sensorReadingsApi.list({ limit: 400 }),
         alertsApi.list(),
       ]);
 

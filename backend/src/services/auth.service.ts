@@ -28,14 +28,32 @@ function toUser(row: UserRow): User {
     email: row.email ?? undefined,
     avatar: row.avatar ?? undefined,
     station: station?.name,
+    stationId: row.station_id ?? undefined,
   }
 }
 
-export function login(username: string, password: string): { token: string; user: User } {
-  const row = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as UserRow | undefined
+export function login(
+  role: string,
+  username: string | null,
+  stationId: string | null,
+  password: string,
+): { token: string; user: User } {
+  let row: UserRow | undefined
+
+  if (role === 'railway_administrator') {
+    // Admin: username diye login
+    row = db.prepare('SELECT * FROM users WHERE username = ?').get(username ?? '') as UserRow | undefined
+  } else if (role === 'station_incharge' || role === 'maintenance_team') {
+    // Incharge/Maintenance: Station ID + password, oi role-er user
+    row = db
+      .prepare('SELECT * FROM users WHERE station_id = ? AND role = ?')
+      .get(stationId ?? '', role) as UserRow | undefined
+  } else {
+    throw new ApiError(400, 'Invalid role')
+  }
 
   if (!row || !bcrypt.compareSync(password, row.password_hash)) {
-    throw new ApiError(401, 'Invalid username or password')
+    throw new ApiError(401, 'Invalid credentials. Please check and try again.')
   }
 
   const user = toUser(row)
@@ -44,7 +62,7 @@ export function login(username: string, password: string): { token: string; user
 
 export function signToken(user: User): string {
   return jwt.sign(
-    { id: Number(user.id), username: user.username, role: user.role, name: user.name },
+    { id: Number(user.id), username: user.username, role: user.role, name: user.name, stationId: user.stationId },
     env.jwtSecret,
     { expiresIn: env.jwtExpiresIn as jwt.SignOptions['expiresIn'] },
   )

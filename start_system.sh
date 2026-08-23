@@ -91,6 +91,10 @@ sleep 2   # YOLO model load howar shomoy dao
 # 4. Sensor fusion (ESP32 serial + camera_stream theke detection poll)
 start_process "sensor_fusion" "$RAILWAY_DIR" "$PY_BIN sensor_fusion_dashboard.py"
 
+# 5. Track simulator — sob track-er jonno 1.5s por por sensor data generate kore
+#    database-e pathay (choto base value x variation, protita track-er alada)
+start_process "track_simulator" "$RAILWAY_DIR" "$PY_BIN -u track_simulator.py --interval 1.5"
+
 FRONTEND_PORT="${PORT:-8443}"
 echo ""
 echo "===================================================="

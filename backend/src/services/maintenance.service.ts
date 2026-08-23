@@ -8,7 +8,16 @@ const SELECT = `
          progress, status, start_time AS startTime, completion_time AS completionTime
   FROM v_maintenance_details`
 
-export function listTasks(): MaintenanceTask[] {
+export function listTasks(stationId?: string | null): MaintenanceTask[] {
+  if (stationId) {
+    const rows = db
+      .prepare(
+        `SELECT m.id FROM maintenance_tasks m JOIN tracks t ON t.id = m.track_id
+         WHERE t.station_id = ? ORDER BY m.id`,
+      )
+      .all(stationId) as { id: string }[]
+    return rows.map((r) => getTask(r.id))
+  }
   return db.prepare(`${SELECT} ORDER BY id`).all() as MaintenanceTask[]
 }
 

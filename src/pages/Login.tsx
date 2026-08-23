@@ -1,18 +1,21 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { MdTrain, MdLock, MdPerson, MdVisibility, MdVisibilityOff, MdWarning } from 'react-icons/md';
+import { MdTrain, MdLock, MdPerson, MdVisibility, MdVisibilityOff, MdWarning, MdAdminPanelSettings, MdEngineering, MdBadge } from 'react-icons/md';
 
-const DEMO_CREDENTIALS = [
-  { role: 'Railway Administrator', username: 'admin', password: 'admin123' },
-  { role: 'Station Incharge', username: 'incharge', password: 'incharge123' },
-  { role: 'Maintenance Team', username: 'maintenance', password: 'maint123' },
+type Role = 'railway_administrator' | 'station_incharge' | 'maintenance_team';
+
+const ROLES: { id: Role; label: string; icon: typeof MdPerson; hint: string }[] = [
+  { id: 'railway_administrator', label: 'Railway Administrator', icon: MdAdminPanelSettings, hint: 'Username + Password' },
+  { id: 'station_incharge', label: 'Station Incharge', icon: MdBadge, hint: 'Station ID + Password' },
+  { id: 'maintenance_team', label: 'Maintenance Team', icon: MdEngineering, hint: 'Station ID + Password' },
 ];
 
 export default function Login() {
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ username: '', password: '', remember: false });
+  const [role, setRole] = useState<Role>('railway_administrator');
+  const [form, setForm] = useState({ username: '', stationId: '', password: '', remember: false });
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -21,19 +24,30 @@ export default function Login() {
 
   if (isAuthenticated) return null;
 
+  const isStationLogin = role !== 'railway_administrator';
+  const selectedRole = ROLES.find(r => r.id === role)!;
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const result = await login(form.username, form.password);
+    const result = await login(
+      role,
+      isStationLogin ? null : form.username,
+      isStationLogin ? form.stationId.toUpperCase() : null,
+      form.password,
+    );
     setLoading(false);
     if (result === 'ok') navigate('/dashboard');
     else if (result === 'unreachable')
       setError('Cannot reach the backend API (port 5000). Make sure it is running, then try again.');
-    else setError('Invalid username or password. Please try again.');
+    else
+      setError(
+        isStationLogin
+          ? 'Invalid Station ID or password. Please try again.'
+          : 'Invalid username or password. Please try again.',
+      );
   };
-
-  const fillDemo = (u: string, p: string) => setForm(f => ({ ...f, username: u, password: p }));
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-50 to-slate-100 flex items-center justify-center p-4 relative overflow-hidden">
@@ -55,6 +69,22 @@ export default function Login() {
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xl shadow-slate-200/60">
           <h2 className="text-base font-semibold text-slate-800 mb-5">Control Center Login</h2>
 
+          {/* Role selector */}
+          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Select Your Role</label>
+          <div className="grid grid-cols-3 gap-2 mb-5">
+            {ROLES.map(r => (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => setRole(r.id)}
+                className={`flex flex-col items-center gap-1.5 px-2 py-3 rounded-xl border-2 transition-all ${role === r.id ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-slate-200 hover:border-slate-300 bg-white'}`}
+              >
+                <r.icon className={`text-xl ${role === r.id ? 'text-blue-600' : 'text-slate-400'}`} />
+                <span className={`text-[11px] font-semibold leading-tight text-center ${role === r.id ? 'text-blue-700' : 'text-slate-500'}`}>{r.label}</span>
+              </button>
+            ))}
+          </div>
+
           {error && (
             <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">
               <MdWarning className="text-red-500 flex-shrink-0" />
@@ -63,20 +93,38 @@ export default function Login() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Username</label>
-              <div className="relative">
-                <MdPerson className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg" />
-                <input
-                  type="text"
-                  value={form.username}
-                  onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
-                  placeholder="Enter your username"
-                  required
-                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all"
-                />
+            {isStationLogin ? (
+              <div>
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Station ID</label>
+                <div className="relative">
+                  <MdBadge className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg" />
+                  <input
+                    type="text"
+                    value={form.stationId}
+                    onChange={e => setForm(f => ({ ...f, stationId: e.target.value }))}
+                    placeholder="e.g. ST01"
+                    required
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all font-mono uppercase"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">You will only see data for this station.</p>
               </div>
-            </div>
+            ) : (
+              <div>
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Username</label>
+                <div className="relative">
+                  <MdPerson className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg" />
+                  <input
+                    type="text"
+                    value={form.username}
+                    onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
+                    placeholder="Enter your username"
+                    required
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all"
+                  />
+                </div>
+              </div>
+            )}
 
             <div>
               <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Password</label>
@@ -118,25 +166,9 @@ export default function Login() {
             >
               {loading ? (
                 <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Authenticating...</>
-              ) : 'Login to Dashboard'}
+              ) : `Login as ${selectedRole.label}`}
             </button>
           </form>
-        </div>
-
-        <div className="mt-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-          <p className="text-xs text-slate-500 mb-2.5 font-semibold uppercase tracking-wider">Demo Credentials</p>
-          <div className="space-y-1.5">
-            {DEMO_CREDENTIALS.map(d => (
-              <button
-                key={d.username}
-                onClick={() => fillDemo(d.username, d.password)}
-                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-blue-50 hover:border-blue-200 border border-slate-200 transition-colors text-left group"
-              >
-                <span className="text-xs font-medium text-slate-700 group-hover:text-blue-700">{d.role}</span>
-                <span className="text-xs font-mono text-slate-400 group-hover:text-blue-500">{d.username}</span>
-              </button>
-            ))}
-          </div>
         </div>
       </div>
     </div>
