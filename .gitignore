@@ -18,3 +18,5 @@ __pycache__/
 *.pyc
 # Pi local backup
 Pi-backup/
+backend/data/railway.db
+backend/data/railway.db-journal
