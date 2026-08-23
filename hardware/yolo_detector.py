@@ -24,6 +24,7 @@ Model:
     শুধু ওয়্যারিং/লজিক ভেরিফাই করার জন্য কাজে লাগবে)।
 """
 
+import os
 import time
 import threading
 from dataclasses import dataclass, field
@@ -34,7 +35,7 @@ from ultralytics import YOLO
 
 # ==================== CONFIG ====================
 
-MODEL_PATH = "models/railway_yolov8n.pt"   # fine-tuned model path (fallback: "yolov8n.pt")
+MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "railway_yolov8n.pt")   # fine-tuned model path (fallback: "yolov8n.pt")
 CONF_THRESHOLD = 0.40
 CAMERA_INDEX = 0                            # USB camera হলে; Pi Camera হলে use_picamera=True
 USE_PICAMERA = False                        # Pi Camera Module হলে True করো

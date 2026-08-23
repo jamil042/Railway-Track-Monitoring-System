@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import type { User } from '../types';
 import { authApi } from '../api';
@@ -5,7 +6,7 @@ import { clearAuth, getStoredAuth, storeAuth } from '../api/client';
 
 interface AuthContextType {
   user: User | null;
-  login: (username: string, password: string) => Promise<boolean>;
+  login: (username: string, password: string) => Promise<'ok' | 'invalid' | 'unreachable'>;
   logout: () => void;
   isAuthenticated: boolean;
 }
@@ -15,14 +16,15 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => (getStoredAuth()?.user as User | undefined) ?? null);
 
-  const login = async (username: string, password: string): Promise<boolean> => {
+  const login = async (username: string, password: string): Promise<'ok' | 'invalid' | 'unreachable'> => {
     try {
       const { token, user } = await authApi.login(username, password);
       storeAuth({ token, user });
       setUser(user);
-      return true;
-    } catch {
-      return false;
+      return 'ok';
+    } catch (err) {
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+      return status === 401 ? 'invalid' : 'unreachable';
     }
   };
 

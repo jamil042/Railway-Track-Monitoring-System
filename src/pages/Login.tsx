@@ -25,9 +25,11 @@ export default function Login() {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const ok = await login(form.username, form.password);
+    const result = await login(form.username, form.password);
     setLoading(false);
-    if (ok) navigate('/dashboard');
+    if (result === 'ok') navigate('/dashboard');
+    else if (result === 'unreachable')
+      setError('Cannot reach the backend API (port 5000). Make sure it is running, then try again.');
     else setError('Invalid username or password. Please try again.');
   };
 

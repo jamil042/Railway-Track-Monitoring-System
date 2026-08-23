@@ -4,11 +4,9 @@ import TrackCard from '../components/TrackCard';
 import SearchBar from '../components/SearchBar';
 import Pagination from '../components/Pagination';
 import type { TrackStatus } from '../types';
-import { MdRadar, MdCheckCircle, MdWarning, MdDangerous, MdVideocam, MdStop } from 'react-icons/md';
+import { MdRadar, MdCheckCircle, MdWarning, MdDangerous } from 'react-icons/md';
 
 const PER_PAGE = 9;
-
-const CAMERA_STREAM_URL = 'http://192.168.0.105:8081/stream';
 
 const STATUS_FILTERS: { label: string; value: TrackStatus | 'all'; icon: typeof MdCheckCircle; iconColor: string; bg: string; border: string }[] = [
   { label: 'All Tracks', value: 'all', icon: MdRadar, iconColor: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-200' },
@@ -31,7 +29,6 @@ export default function Monitoring() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<TrackStatus | 'all'>('all');
   const [page, setPage] = useState(1);
-  const [showCamera, setShowCamera] = useState(false);
 
   const filtered = useMemo(() => {
     return liveTracks.filter(t => {
@@ -63,36 +60,7 @@ export default function Monitoring() {
           <h1 className="text-xl font-bold text-slate-900">Live Railway Monitoring</h1>
           <p className="text-slate-500 text-sm mt-0.5">Real-time track status across all Bangladesh Railway stations</p>
         </div>
-        <button
-          onClick={() => setShowCamera(!showCamera)}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all border shadow-sm ${
-            showCamera
-              ? 'bg-red-600 border-red-600 text-white shadow-red-200'
-              : 'bg-blue-600 border-blue-600 text-white shadow-blue-200 hover:bg-blue-700'
-          }`}
-        >
-          {showCamera ? <><MdStop className="text-lg" /> Stop Camera</> : <><MdVideocam className="text-lg" /> Live Camera</>}
-        </button>
       </div>
-
-      {showCamera && (
-        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-          <div className="bg-slate-900 px-4 py-2.5 flex items-center gap-2">
-            <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
-            <span className="text-xs font-semibold text-white tracking-wide">LIVE CAMERA — YOLO Detection Active</span>
-          </div>
-          <div className="bg-black flex items-center justify-center" style={{ minHeight: 400 }}>
-            <img
-              src={CAMERA_STREAM_URL}
-              alt="Live Railway Camera"
-              className="max-w-full max-h-[500px] object-contain"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200"><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%23666" font-size="14">Camera stream unavailable — run camera_stream.py on Pi</text></svg>';
-              }}
-            />
-          </div>
-        </div>
-      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {STATUS_FILTERS.map(f => (
