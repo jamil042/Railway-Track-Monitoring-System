@@ -39,16 +39,59 @@ export function login(username: string, password: string): { token: string; user
   }
 
   const user = toUser(row)
-  const token = jwt.sign(
-    { id: row.id, username: row.username, role: row.role, name: row.name },
+  return { token: signToken(user), user }
+}
+
+export function signToken(user: User): string {
+  return jwt.sign(
+    { id: Number(user.id), username: user.username, role: user.role, name: user.name },
     env.jwtSecret,
     { expiresIn: env.jwtExpiresIn as jwt.SignOptions['expiresIn'] },
   )
-  return { token, user }
 }
 
 export function getUserById(id: number): User {
   const row = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow | undefined
   if (!row) throw new ApiError(404, 'User not found')
   return toUser(row)
+}
+
+export function updateProfile(
+  id: number,
+  data: { name?: string; email?: string; stationId?: string },
+): User {
+  const row = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow | undefined
+  if (!row) throw new ApiError(404, 'User not found')
+
+  const sets: string[] = []
+  const params: Record<string, unknown> = { id }
+  if (data.name?.trim()) {
+    sets.push('name = @name')
+    params.name = data.name.trim()
+  }
+  if (data.email !== undefined) {
+    sets.push('email = @email')
+    params.email = data.email.trim() || null
+  }
+  if (data.stationId !== undefined) {
+    sets.push('station_id = @stationId')
+    params.stationId = data.stationId || null
+  }
+  if (sets.length > 0) {
+    db.prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = @id`).run(params)
+  }
+  return getUserById(id)
+}
+
+export function changePassword(id: number, currentPassword: string, newPassword: string): void {
+  if (!newPassword || newPassword.length < 8) {
+    throw new ApiError(400, 'New password must be at least 8 characters')
+  }
+  const row = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow | undefined
+  if (!row) throw new ApiError(404, 'User not found')
+  if (!bcrypt.compareSync(currentPassword, row.password_hash)) {
+    throw new ApiError(401, 'Current password is incorrect')
+  }
+  const hash = bcrypt.hashSync(newPassword, 10)
+  db.prepare('UPDATE users SET password_hash = @hash WHERE id = @id').run({ hash, id })
 }

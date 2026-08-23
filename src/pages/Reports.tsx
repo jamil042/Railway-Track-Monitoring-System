@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
@@ -11,32 +11,58 @@ const TOOLTIP_STYLE = {
   backgroundColor: '#fff', border: '1px solid #E2E8F0', borderRadius: '12px', color: '#0F172A', fontSize: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
 };
 
-const DAILY_DATA = [
-  { date: 'Mon', faults: 3, fixed: 3, maintenance: 2 },
-  { date: 'Tue', faults: 5, fixed: 4, maintenance: 3 },
-  { date: 'Wed', faults: 2, fixed: 2, maintenance: 2 },
-  { date: 'Thu', faults: 7, fixed: 5, maintenance: 4 },
-  { date: 'Fri', faults: 4, fixed: 4, maintenance: 3 },
-  { date: 'Sat', faults: 6, fixed: 3, maintenance: 3 },
-  { date: 'Sun', faults: 5, fixed: 2, maintenance: 2 },
-];
-
-const WEEKLY_DATA = [
-  { date: 'Week 1', faults: 18, fixed: 16, maintenance: 14 },
-  { date: 'Week 2', faults: 24, fixed: 22, maintenance: 19 },
-  { date: 'Week 3', faults: 15, fixed: 15, maintenance: 13 },
-  { date: 'Week 4', faults: 31, fixed: 27, maintenance: 24 },
-];
-
 export default function Reports() {
   const { monthlyStats, faultTypeData, stationFaultData, faults } = useData();
   const [period, setPeriod] = useState<Period>('monthly');
 
   type ChartRow = { date?: string; month?: string; faults: number; fixed: number; maintenance: number };
+
+  // Daily/Weekly chart-o database-er fault record theke compute hoy — kono dummy data nei.
+  const computedStats = useMemo<ChartRow[]>(() => {
+    const now = Date.now();
+    const DAY = 24 * 60 * 60 * 1000;
+    if (period === 'daily') {
+      // Last 7 days, day-name onujayi group
+      const buckets = new Map<string, { faults: number; fixed: number; maintenance: number }>();
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now - i * DAY);
+        buckets.set(d.toLocaleDateString('en-BD', { weekday: 'short' }), { faults: 0, fixed: 0, maintenance: 0 });
+      }
+      for (const f of faults) {
+        const age = now - new Date(f.detectionTime).getTime();
+        if (age < 0 || age > 7 * DAY) continue;
+        const key = new Date(f.detectionTime).toLocaleDateString('en-BD', { weekday: 'short' });
+        const b = buckets.get(key);
+        if (b) {
+          b.faults++;
+          if (f.status === 'fixed') b.fixed++;
+          if (f.status === 'under_maintenance') b.maintenance++;
+        }
+      }
+      return [...buckets.entries()].map(([date, v]) => ({ date, ...v }));
+    }
+    // Weekly: last 4 weeks
+    const buckets = new Map<string, { faults: number; fixed: number; maintenance: number }>();
+    for (let w = 3; w >= 0; w--) buckets.set(`Week ${4 - w}`, { faults: 0, fixed: 0, maintenance: 0 });
+    for (const f of faults) {
+      const age = now - new Date(f.detectionTime).getTime();
+      if (age < 0 || age > 28 * DAY) continue;
+      const weekIdx = Math.min(3, Math.floor(age / (7 * DAY)));
+      const key = `Week ${4 - weekIdx}`;
+      const b = buckets.get(key);
+      if (b) {
+        b.faults++;
+        if (f.status === 'fixed') b.fixed++;
+        if (f.status === 'under_maintenance') b.maintenance++;
+      }
+    }
+    return [...buckets.entries()].map(([date, v]) => ({ date, ...v }));
+  }, [period, faults]);
+
   const chartData = (
-    period === 'daily' ? DAILY_DATA : period === 'weekly' ? WEEKLY_DATA : monthlyStats
+    period === 'monthly' ? monthlyStats : computedStats
   ) as ChartRow[];
-  const xKey = period === 'daily' ? 'date' : period === 'weekly' ? 'date' : 'month';
+  const xKey = period === 'monthly' ? 'month' : 'date';
 
   const totalFaults = faults.length;
   const activeFaults = faults.filter(f => f.status === 'active').length;
@@ -45,7 +71,6 @@ export default function Reports() {
 
   const mostFaultyStation = stationFaultData[0];
   const mostCommonFault = [...faultTypeData].sort((a, b) => b.value - a.value)[0];
-
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between flex-wrap gap-3">
@@ -83,13 +108,25 @@ export default function Reports() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 shadow-sm">
           <p className="text-xs text-slate-500 mb-1 font-medium">Most Faulty Station</p>
-          <p className="text-lg font-bold text-slate-900">{mostFaultyStation.name}</p>
-          <p className="text-sm text-red-600 font-semibold">{mostFaultyStation.faults} active faults</p>
+          {mostFaultyStation ? (
+            <>
+              <p className="text-lg font-bold text-slate-900">{mostFaultyStation.name}</p>
+              <p className="text-sm text-red-600 font-semibold">{mostFaultyStation.faults} active faults</p>
+            </>
+          ) : (
+            <p className="text-lg font-bold text-slate-400">No fault data yet</p>
+          )}
         </div>
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 shadow-sm">
           <p className="text-xs text-slate-500 mb-1 font-medium">Most Common Fault Type</p>
-          <p className="text-lg font-bold text-slate-900">{mostCommonFault.name}</p>
-          <p className="text-sm text-yellow-600 font-semibold">{mostCommonFault.value} occurrences</p>
+          {mostCommonFault ? (
+            <>
+              <p className="text-lg font-bold text-slate-900">{mostCommonFault.name}</p>
+              <p className="text-sm text-yellow-600 font-semibold">{mostCommonFault.value} occurrences</p>
+            </>
+          ) : (
+            <p className="text-lg font-bold text-slate-400">No fault data yet</p>
+          )}
         </div>
       </div>
 
@@ -134,7 +171,7 @@ export default function Reports() {
                   <div
                     className="h-full rounded-full transition-all"
                     style={{
-                      width: `${(d.faults / stationFaultData[0].faults) * 100}%`,
+                      width: `${stationFaultData[0].faults > 0 ? (d.faults / stationFaultData[0].faults) * 100 : 0}%`,
                       backgroundColor: ['#DC2626', '#F59E0B', '#F59E0B', '#3B82F6', '#3B82F6', '#94A3B8'][i],
                     }}
                   />
@@ -157,7 +194,7 @@ export default function Reports() {
                   <span className="text-slate-500 font-semibold">{d.value}</span>
                 </div>
                 <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${(d.value / 22) * 100}%`, backgroundColor: d.color }} />
+                  <div className="h-full rounded-full" style={{ width: `${Math.min(100, (d.value / Math.max(1, ...faultTypeData.map(x => x.value))) * 100)}%`, backgroundColor: d.color }} />
                 </div>
               </div>
             ))}

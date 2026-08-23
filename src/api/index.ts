@@ -19,6 +19,10 @@ export const authApi = {
   login: (username: string, password: string) =>
     unwrap(api.post<{ token: string; user: User }>('/auth/login', { username, password })),
   me: () => unwrap(api.get<{ user: User }>('/auth/me')).then(r => r.user),
+  updateProfile: (data: { name?: string; email?: string }) =>
+    unwrap(api.put<{ token: string; user: User }>('/auth/profile', data)),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    unwrap(api.put<{ ok: boolean }>('/auth/password', { currentPassword, newPassword })),
 };
 
 // ---- Stations ----

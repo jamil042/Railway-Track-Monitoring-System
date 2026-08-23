@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { MdLocationCity, MdLinearScale, MdWarning, MdDangerous, MdCheckCircle, MdBuild, MdTrendingUp, MdAccessTime } from 'react-icons/md';
 import {
   AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -11,8 +12,20 @@ const TOOLTIP_STYLE = {
 };
 
 export default function Dashboard() {
-  const { stats: s, faultTrend, faultTypeData, faults } = useData();
+  const { stats: s, faultTrend, faultTypeData, faults, tracks, readings } = useData();
   const RECENT = faults.slice(0, 5);
+
+  // Network uptime = live sensor coverage: koto % track-er recent (5 min-er moddhe) reading ache.
+  // Puro tao database er sensor_readings theke compute hoy — kono fixed number na.
+  const networkUptime = useMemo(() => {
+    if (tracks.length === 0) return '—';
+    const fiveMinAgo = Date.now() - 5 * 60 * 1000;
+    const liveTrackIds = new Set(
+      readings.filter(r => new Date(r.recordedAt).getTime() >= fiveMinAgo).map(r => r.trackId),
+    );
+    const pct = Math.round((tracks.filter(t => liveTrackIds.has(t.id)).length / tracks.length) * 100);
+    return `${pct}%`;
+  }, [tracks, readings]);
   return (
     <div className="space-y-5">
       <div>
@@ -26,14 +39,14 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard title="Total Stations" value={s.totalStations} icon={<MdLocationCity />} color="blue" />
         <StatCard title="Total Tracks" value={s.totalTracks} icon={<MdLinearScale />} color="purple" />
-        <StatCard title="Active Faults" value={s.activeFaults} icon={<MdWarning />} color="yellow" trend={{ value: 12, label: 'vs yesterday' }} />
-        <StatCard title="Critical Faults" value={s.criticalFaults} icon={<MdDangerous />} color="red" trend={{ value: 5, label: 'vs yesterday' }} />
+        <StatCard title="Active Faults" value={s.activeFaults} icon={<MdWarning />} color="yellow" />
+        <StatCard title="Critical Faults" value={s.criticalFaults} icon={<MdDangerous />} color="red" />
       </div>
 
       <div className="grid grid-cols-3 gap-3">
         <StatCard title="Fixed Today" value={s.fixedToday} icon={<MdCheckCircle />} color="green" subtitle="Track faults resolved" />
         <StatCard title="Under Maintenance" value={s.underMaintenance} icon={<MdBuild />} color="yellow" subtitle="Ongoing repairs" />
-        <StatCard title="Network Uptime" value="98.4%" icon={<MdTrendingUp />} color="blue" subtitle="Sensor network" />
+        <StatCard title="Network Uptime" value={networkUptime} icon={<MdTrendingUp />} color="blue" subtitle="Live sensor coverage" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

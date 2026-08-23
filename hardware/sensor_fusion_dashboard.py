@@ -27,7 +27,7 @@ import serial
 # একসাথে চললে conflict হতো। এখন camera_stream.py-কেই একমাত্র camera-owner রাখা
 # হয়েছে; এই স্ক্রিপ্ট শুধু তার /detection endpoint থেকে HTTP দিয়ে সর্বশেষ
 # detection result নিয়ে আসে।
-CAMERA_STREAM_URL = "http://localhost:8081"
+CAMERA_STREAM_URL = "http://localhost:8082"
 
 
 class SimpleCamResult:
