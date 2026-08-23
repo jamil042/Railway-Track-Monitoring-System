@@ -16,3 +16,5 @@ logs/
 .venv/
 __pycache__/
 *.pyc
+# Pi local backup
+Pi-backup/

@@ -1,6 +1,8 @@
 import type { Track, SensorReading } from '../types';
 import StatusBadge from './StatusBadge';
-import { MdSensors, MdAccessTime, MdRadar, MdSpeed } from 'react-icons/md';
+import { CAMERA_STREAM_URL } from '../camera';
+import { useState } from 'react';
+import { MdSensors, MdAccessTime, MdRadar, MdSpeed, MdFullscreen, MdClose } from 'react-icons/md';
 import { useData } from '../contexts/DataContext';
 
 interface TrackCardProps {
@@ -22,6 +24,7 @@ function latestValue(readings: SensorReading[], trackId: string, sensorType: str
 
 export default function TrackCard({ track }: TrackCardProps) {
   const { readings } = useData();
+  const [expanded, setExpanded] = useState(false);
 
   const healthColor = track.sensorHealth >= 85 ? 'text-green-600' : track.sensorHealth >= 60 ? 'text-yellow-600' : 'text-red-600';
   const healthBg = track.sensorHealth >= 85 ? 'bg-green-500' : track.sensorHealth >= 60 ? 'bg-yellow-500' : 'bg-red-500';
@@ -45,19 +48,32 @@ export default function TrackCard({ track }: TrackCardProps) {
 
   return (
     <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden hover:shadow-md hover:border-slate-300 transition-all duration-200 group">
-      <div className="relative h-36 bg-slate-100 overflow-hidden">
+      <div className="relative h-36 bg-black overflow-hidden">
         <img
-          src={track.imageUrl}
-          alt={`Track ${track.id} camera snapshot`}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          src={CAMERA_STREAM_URL}
+          alt={`Track ${track.id} live camera (YOLO detection)`}
+          className="w-full h-full object-cover"
+          onError={(e) => {
+            // camera_stream.py bondho thakle track-er placeholder snapshot dekhao
+            (e.target as HTMLImageElement).src = track.imageUrl;
+          }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
         <div className="absolute top-2.5 left-2.5">
           <StatusBadge status={track.status} />
         </div>
-        <div className="absolute bottom-2.5 right-2.5 text-xs text-white bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded-md font-mono">
-          LIVE CAM
+        <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded-md">
+          <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+          <span className="text-xs text-white font-mono">LIVE CAM</span>
         </div>
+        {/* Boro kore dekhar button — click korle fullscreen modal-e stream dekhabe */}
+        <button
+          onClick={() => setExpanded(true)}
+          title="View full screen"
+          className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5 bg-black/60 hover:bg-blue-600 backdrop-blur-sm px-2.5 py-1 rounded-md text-white text-xs font-medium transition-all"
+        >
+          <MdFullscreen className="text-base" /> Expand
+        </button>
       </div>
 
       <div className="p-4">
@@ -107,6 +123,42 @@ export default function TrackCard({ track }: TrackCardProps) {
           <span>Updated {fmt(track.lastUpdated)}</span>
         </div>
       </div>
+
+      {/* Fullscreen live camera modal */}
+      {expanded && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setExpanded(false)}
+        >
+          <div className="w-full h-full flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="bg-slate-900 px-4 py-2.5 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
+                <span className="text-sm font-semibold text-white font-mono tracking-wide">
+                  {track.id} — LIVE CAMERA (YOLO Detection)
+                </span>
+              </div>
+              <button
+                onClick={() => setExpanded(false)}
+                className="text-white/70 hover:text-white transition-colors"
+                title="Close"
+              >
+                <MdClose className="text-2xl" />
+              </button>
+            </div>
+            <div className="flex-1 bg-black flex items-center justify-center overflow-hidden min-h-0">
+              <img
+                src={CAMERA_STREAM_URL}
+                alt={`Track ${track.id} full screen camera`}
+                className="w-full h-full object-contain"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = track.imageUrl;
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
