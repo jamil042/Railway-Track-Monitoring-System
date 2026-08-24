@@ -1,39 +1,55 @@
-import { db } from '../db/index.js'
 import { ApiError } from '../middleware/errorHandler.js'
+import { COL, firestore } from '../db/index.js'
 import type { MaintenanceTask } from '../types/index.js'
 
-const SELECT = `
-  SELECT id, fault_id AS faultId, fault_type AS faultType, station_name AS stationName,
-         track_id AS trackId, assigned_team AS assignedTeam, engineer,
-         progress, status, start_time AS startTime, completion_time AS completionTime
-  FROM v_maintenance_details`
-
-export function listTasks(stationId?: string | null): MaintenanceTask[] {
-  if (stationId) {
-    const rows = db
-      .prepare(
-        `SELECT m.id FROM maintenance_tasks m JOIN tracks t ON t.id = m.track_id
-         WHERE t.station_id = ? ORDER BY m.id`,
-      )
-      .all(stationId) as { id: string }[]
-    return rows.map((r) => getTask(r.id))
-  }
-  return db.prepare(`${SELECT} ORDER BY id`).all() as MaintenanceTask[]
-}
-
-export function getTask(id: string): MaintenanceTask {
-  const row = db.prepare(`${SELECT} WHERE id = ?`).get(id) as MaintenanceTask | undefined
-  if (!row) throw new ApiError(404, `Maintenance task '${id}' not found`)
-  return row
-}
-
-export function createTask(data: Partial<MaintenanceTask>): MaintenanceTask {
-  const id = data.id?.trim() || `MNT-${Date.now()}`
-  db.prepare(
-    `INSERT INTO maintenance_tasks (id, fault_id, track_id, assigned_team, engineer, progress, status, start_time, completion_time)
-     VALUES (@id, @faultId, @trackId, @assignedTeam, @engineer, @progress, @status, @startTime, @completionTime)`,
-  ).run({
+function toTask(id: string, d: FirebaseFirestore.DocumentData): MaintenanceTask {
+  return {
     id,
+    faultId: d.faultId,
+    faultType: d.faultType ?? undefined,
+    stationName: d.stationName ?? undefined,
+    trackId: d.trackId ?? null,
+    assignedTeam: d.assignedTeam,
+    engineer: d.engineer,
+    progress: d.progress ?? 0,
+    status: d.status,
+    startTime: d.startTime ?? undefined,
+    completionTime: d.completionTime ?? undefined,
+  } as MaintenanceTask
+}
+
+export async function listTasks(stationId?: string | null): Promise<MaintenanceTask[]> {
+  let q = firestore.collection(COL.maintenanceTasks) as FirebaseFirestore.Query
+  if (stationId) q = q.where('stationId', '==', stationId)
+  const snap = await q.get()
+  return snap.docs
+    .map((d) => toTask(d.id, d.data()))
+    .sort((a, b) => a.id.localeCompare(b.id))
+}
+
+export async function getTask(id: string): Promise<MaintenanceTask> {
+  const snap = await firestore.collection(COL.maintenanceTasks).doc(id).get()
+  if (!snap.exists) throw new ApiError(404, `Maintenance task '${id}' not found`)
+  return toTask(snap.id, snap.data()!)
+}
+
+export async function createTask(data: Partial<MaintenanceTask>): Promise<MaintenanceTask> {
+  const id = data.id?.trim() || `MNT-${Date.now()}`
+
+  // Replaces v_maintenance_details join: denormalize faultType/stationId/stationName.
+  let stationId: string | null = null
+  let stationName: string | null = null
+  let faultType: string | null = null
+  if (data.faultId) {
+    const fault = await firestore.collection(COL.faults).doc(data.faultId).get()
+    if (fault.exists) {
+      faultType = fault.data()?.faultType ?? null
+      stationId = fault.data()?.stationId ?? null
+      stationName = fault.data()?.stationName ?? null
+    }
+  }
+
+  await firestore.collection(COL.maintenanceTasks).doc(id).set({
     faultId: data.faultId ?? '',
     trackId: data.trackId ?? null,
     assignedTeam: data.assignedTeam ?? '',
@@ -42,41 +58,30 @@ export function createTask(data: Partial<MaintenanceTask>): MaintenanceTask {
     status: data.status ?? 'pending',
     startTime: data.startTime ?? null,
     completionTime: data.completionTime ?? null,
+    stationId,
+    stationName,
+    faultType,
   })
   return getTask(id)
 }
 
 const UPDATABLE = ['faultId', 'trackId', 'assignedTeam', 'engineer', 'progress', 'status', 'startTime', 'completionTime'] as const
 
-export function updateTask(id: string, data: Partial<MaintenanceTask>): MaintenanceTask {
-  getTask(id)
-
-  const sets = UPDATABLE.filter((key) => data[key] !== undefined)
-  if (sets.length === 0) return getTask(id)
-
-  const columns = sets.map((key) => `${columnFor(key)} = @${key}`).join(', ')
-  db.prepare(`UPDATE maintenance_tasks SET ${columns} WHERE id = @id`).run({ id, ...pick(data, sets) })
+export async function updateTask(id: string, data: Partial<MaintenanceTask>): Promise<MaintenanceTask> {
+  await getTask(id)
+  const updates: Record<string, unknown> = {}
+  for (const key of UPDATABLE) {
+    if (data[key] !== undefined) updates[key] = data[key]
+  }
+  if (Object.keys(updates).length > 0) {
+    await firestore.collection(COL.maintenanceTasks).doc(id).update(updates)
+  }
   return getTask(id)
 }
 
-export function deleteTask(id: string): void {
-  const result = db.prepare('DELETE FROM maintenance_tasks WHERE id = ?').run(id)
-  if (result.changes === 0) throw new ApiError(404, `Maintenance task '${id}' not found`)
-}
-
-function pick<T extends object, K extends keyof T>(obj: T, keys: readonly K[]): Pick<T, K> {
-  const out = {} as Pick<T, K>
-  for (const key of keys) out[key] = obj[key]
-  return out
-}
-
-function columnFor(key: string): string {
-  const map: Record<string, string> = {
-    faultId: 'fault_id',
-    trackId: 'track_id',
-    assignedTeam: 'assigned_team',
-    startTime: 'start_time',
-    completionTime: 'completion_time',
-  }
-  return map[key] ?? key
+export async function deleteTask(id: string): Promise<void> {
+  const ref = firestore.collection(COL.maintenanceTasks).doc(id)
+  const snap = await ref.get()
+  if (!snap.exists) throw new ApiError(404, `Maintenance task '${id}' not found`)
+  await ref.delete()
 }

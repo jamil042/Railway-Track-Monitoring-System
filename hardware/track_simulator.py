@@ -7,22 +7,19 @@ constant base value theke multiply kore ektu ektu change hoy, jar fole
 protita track-er value onno track theke alada thake.
 
 Prottek 1.5 second-e sob track-er jonno vibration / ultrasonic / ir_beam
-reading backend-er public ingest endpoint-e POST kore. Backend-er SQLite
-trigger oi reading theke track-er cached value + sensor_health + status
+reading backend-er public ingest endpoint-e POST kore. Backend (Firestore)
+oi reading theke track-er cached value + sensor_health + status
 (safe/warning/critical) automatically update kore dey.
 
 Run:  python3 track_simulator.py [--interval 1.5] [--backend http://localhost:5000]
 """
 
 import argparse
+import math
 import random
-import sqlite3
 import time
-from pathlib import Path
 
 import requests
-
-DB_PATH = Path(__file__).resolve().parent.parent / "backend" / "data" / "railway.db"
 
 
 def track_seed(track_id: str) -> int:
@@ -34,6 +31,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--interval", type=float, default=1.5)
     parser.add_argument("--backend", default="http://localhost:5000")
+    parser.add_argument("--token", default=None, help="Bearer token for authenticated /api/tracks")
     args = parser.parse_args()
 
     url = f"{args.backend}/api/sensor-readings"
@@ -46,18 +44,19 @@ def main() -> None:
 
     while True:
         try:
-            conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
-            tracks = conn.execute("SELECT id FROM tracks ORDER BY id").fetchall()
-            conn.close()
-        except sqlite3.Error as exc:
-            print(f"[SIM] DB read error: {exc}")
+            resp = session.get(f"{args.backend}/api/tracks", timeout=5,
+                               headers={"Authorization": "Bearer " + args.token} if args.token else {})
+            resp.raise_for_status()
+            tracks = [t["id"] for t in resp.json()]
+        except (requests.RequestException, ValueError, KeyError) as exc:
+            print(f"[SIM] API error: {exc}")
             time.sleep(args.interval)
             continue
 
         now = time.strftime("%Y-%m-%dT%H:%M:%S")
         sent = 0
 
-        for (track_id,) in tracks:
+        for track_id in tracks:
             if track_id not in bases:
                 seed = track_seed(track_id)
                 r = random.Random(seed)

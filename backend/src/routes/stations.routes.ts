@@ -5,24 +5,24 @@ import { ApiError } from '../middleware/errorHandler.js'
 
 const router = Router()
 
-router.get('/', authenticate, (req: AuthRequest, res) => {
-  res.json(stations.listStations(scopedStationId(req)))
+router.get('/', authenticate, async (req: AuthRequest, res) => {
+  res.json(await stations.listStations(scopedStationId(req)))
 })
 
-router.get('/:id', (req, res) => {
-  res.json(stations.getStation(String(req.params.id)))
+router.get('/:id', async (req, res) => {
+  res.json(await stations.getStation(String(req.params.id)))
 })
 
-router.post('/', authenticate, requireAdmin, (req, res) => {
-  res.status(201).json(stations.createStation(req.body ?? {}))
+router.post('/', authenticate, requireAdmin, async (req, res) => {
+  res.status(201).json(await stations.createStation(req.body ?? {}))
 })
 
-router.put('/:id', authenticate, requireAdmin, (req, res) => {
-  res.json(stations.updateStation(String(req.params.id), req.body ?? {}))
+router.put('/:id', authenticate, requireAdmin, async (req, res) => {
+  res.json(await stations.updateStation(String(req.params.id), req.body ?? {}))
 })
 
-router.delete('/:id', authenticate, requireAdmin, (req, res) => {
-  stations.deleteStation(String(req.params.id))
+router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
+  await stations.deleteStation(String(req.params.id))
   res.status(204).end()
 })
 

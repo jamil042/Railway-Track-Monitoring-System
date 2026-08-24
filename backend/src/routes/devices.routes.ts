@@ -5,28 +5,28 @@ import { ApiError } from '../middleware/errorHandler.js'
 
 const router = Router()
 
-router.get('/', authenticate, (req: AuthRequest, res) => {
-  res.json(devices.listDevices(scopedStationId(req)))
+router.get('/', authenticate, async (req: AuthRequest, res) => {
+  res.json(await devices.listDevices(scopedStationId(req)))
 })
 
-router.get('/:id', (req, res) => {
-  res.json(devices.getDevice(Number(req.params.id)))
+router.get('/:id', async (req, res) => {
+  res.json(await devices.getDevice(Number(req.params.id)))
 })
 
-router.post('/', authenticate, requireAdmin, (req, res) => {
-  res.status(201).json(devices.createDevice(req.body ?? {}))
+router.post('/', authenticate, requireAdmin, async (req, res) => {
+  res.status(201).json(await devices.createDevice(req.body ?? {}))
 })
 
-router.put('/:id', authenticate, requireAdmin, (req, res) => {
+router.put('/:id', authenticate, requireAdmin, async (req, res) => {
   const id = Number(req.params.id)
   if (!Number.isInteger(id)) throw new ApiError(400, 'Invalid device id')
-  res.json(devices.updateDevice(id, req.body ?? {}))
+  res.json(await devices.updateDevice(id, req.body ?? {}))
 })
 
-router.delete('/:id', authenticate, requireAdmin, (req, res) => {
+router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
   const id = Number(req.params.id)
   if (!Number.isInteger(id)) throw new ApiError(400, 'Invalid device id')
-  devices.deleteDevice(id)
+  await devices.deleteDevice(id)
   res.status(204).end()
 })
 

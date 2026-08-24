@@ -18,5 +18,7 @@ __pycache__/
 *.pyc
 # Pi local backup
 Pi-backup/
-backend/data/railway.db
-backend/data/railway.db-journal
+
+# Firebase service account key
+backend/raileway-track-monitoring-firebase-adminsdk-fbsvc-a523b1debb.json
+*.env

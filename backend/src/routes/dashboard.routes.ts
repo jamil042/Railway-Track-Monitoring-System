@@ -5,24 +5,24 @@ import { authenticate, type AuthRequest, scopedStationId } from '../middleware/a
 const router = Router()
 
 // Non-admin users get station-scoped stats — they only ever see their own station.
-router.get('/stats', authenticate, (req: AuthRequest, res) => {
-  res.json(dashboard.getStats(scopedStationId(req)))
+router.get('/stats', authenticate, async (req: AuthRequest, res) => {
+  res.json(await dashboard.getStats(scopedStationId(req)))
 })
 
-router.get('/fault-trend', authenticate, (req: AuthRequest, res) => {
-  res.json(dashboard.getFaultTrend(scopedStationId(req)))
+router.get('/fault-trend', authenticate, async (req: AuthRequest, res) => {
+  res.json(await dashboard.getFaultTrend(scopedStationId(req)))
 })
 
-router.get('/fault-by-type', authenticate, (req: AuthRequest, res) => {
-  res.json(dashboard.getFaultByType(scopedStationId(req)))
+router.get('/fault-by-type', authenticate, async (req: AuthRequest, res) => {
+  res.json(await dashboard.getFaultByType(scopedStationId(req)))
 })
 
-router.get('/monthly-stats', authenticate, (req: AuthRequest, res) => {
-  res.json(dashboard.getMonthlyStats(scopedStationId(req)))
+router.get('/monthly-stats', authenticate, async (req: AuthRequest, res) => {
+  res.json(await dashboard.getMonthlyStats(scopedStationId(req)))
 })
 
-router.get('/fault-by-station', authenticate, (req: AuthRequest, res) => {
-  res.json(dashboard.getFaultByStation(scopedStationId(req)))
+router.get('/fault-by-station', authenticate, async (req: AuthRequest, res) => {
+  res.json(await dashboard.getFaultByStation(scopedStationId(req)))
 })
 
 export default router

@@ -5,10 +5,10 @@ import { authenticate, type AuthRequest, scopedStationId } from '../middleware/a
 
 const router = Router()
 
-router.get('/', authenticate, (req: AuthRequest, res) => {
+router.get('/', authenticate, async (req: AuthRequest, res) => {
   const { deviceId, trackId, sensorType, limit } = req.query as Record<string, string | undefined>
   res.json(
-    readings.listReadings({
+    await readings.listReadings({
       deviceId: deviceId ? Number(deviceId) : undefined,
       trackId,
       sensorType,
@@ -22,13 +22,13 @@ router.get('/', authenticate, (req: AuthRequest, res) => {
  * Telemetry ingest endpoint. Public by design: on-device sensors (ESP32 /
  * Raspberry Pi) push readings here without an authenticated session.
  */
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const body = req.body as Record<string, unknown>
   if (body.deviceId !== undefined && typeof body.deviceId !== 'number') {
     throw new ApiError(400, 'deviceId must be a number')
   }
   res.status(201).json(
-    readings.createReading({
+    await readings.createReading({
       deviceId: body.deviceId as number,
       trackId: body.trackId as string,
       sensorType: body.sensorType as never,

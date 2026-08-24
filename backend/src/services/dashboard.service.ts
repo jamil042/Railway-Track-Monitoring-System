@@ -1,103 +1,139 @@
-import { db } from '../db/index.js'
+import { COL, firestore } from '../db/index.js'
 import type { DashboardStats } from '../types/index.js'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-export function getStats(stationId?: string | null): DashboardStats {
-  if (stationId) {
-    // Station-scoped stats: sudhu ei station-er tracks/faults count hoy.
-    return db
-      .prepare(
-        `SELECT
-            1 AS totalStations,
-            (SELECT COUNT(*) FROM tracks WHERE station_id = @st) AS totalTracks,
-            (SELECT COUNT(*) FROM tracks WHERE station_id = @st AND status IN ('warning','critical')) AS activeFaults,
-            (SELECT COUNT(*) FROM tracks WHERE station_id = @st AND status = 'critical') AS criticalFaults,
-            (SELECT COUNT(*) FROM faults WHERE station_id = @st AND status = 'fixed' AND date(detection_time) = date('now')) AS fixedToday,
-            (SELECT COUNT(*) FROM maintenance_tasks m JOIN tracks t ON t.id = m.track_id
-              WHERE t.station_id = @st AND m.status IN ('pending','in_progress')) AS underMaintenance,
-            CASE
-              WHEN (SELECT COUNT(*) FROM tracks WHERE station_id = @st AND status = 'critical') > 0 THEN 'critical'
-              WHEN (SELECT COUNT(*) FROM tracks WHERE station_id = @st AND status = 'warning') > 0 THEN 'degraded'
-              ELSE 'operational'
-            END AS systemStatus`,
-      )
-      .get({ st: stationId }) as DashboardStats
+/** Replaces v_dashboard_stats + the station-scoped stats query. */
+export async function getStats(stationId?: string | null): Promise<DashboardStats> {
+  const tracksSnap = stationId
+    ? await firestore.collection(COL.tracks).where('stationId', '==', stationId).get()
+    : await firestore.collection(COL.tracks).get()
+  const faultsSnap = await firestore.collection(COL.faults).get()
+  const tasksSnap = stationId
+    ? await firestore.collection(COL.maintenanceTasks).where('stationId', '==', stationId).get()
+    : await firestore.collection(COL.maintenanceTasks).get()
+
+  // A track counts as "live" when it actually has a sensor reading.
+  const readings = await firestore.collection(COL.sensorReadings).get()
+  const liveTrackIds = new Set(readings.docs.map((d) => d.data().trackId as string | undefined).filter(Boolean))
+
+  let activeFaults = 0
+  let criticalFaults = 0
+  for (const t of tracksSnap.docs) {
+    if (!liveTrackIds.has(t.id)) continue
+    if (t.data().status === 'warning') activeFaults++
+    if (t.data().status === 'critical') {
+      activeFaults++
+      criticalFaults++
+    }
   }
-  return db
-    .prepare(
-      `SELECT total_stations AS totalStations,
-              total_tracks AS totalTracks,
-              active_faults AS activeFaults,
-              critical_faults AS criticalFaults,
-              fixed_today AS fixedToday,
-              under_maintenance AS underMaintenance,
-              system_status AS systemStatus
-       FROM v_dashboard_stats`,
-    )
-    .get() as DashboardStats
-}
 
-export function getFaultTrend(stationId?: string | null): { date: string; faults: number; fixed: number }[] {
-  const rows = (
-    stationId
-      ? db.prepare(
-          `SELECT date(detection_time) AS date, COUNT(*) AS faults,
-                  SUM(CASE WHEN status = 'fixed' THEN 1 ELSE 0 END) AS fixed
-             FROM faults WHERE station_id = ?
-            GROUP BY date(detection_time) ORDER BY date(detection_time)`,
-        ).all(stationId)
-      : db.prepare('SELECT * FROM v_fault_trend').all()
-  ) as { date: string; faults: number; fixed: number }[]
-  return rows.map((r) => {
-    const [year, month, day] = r.date.split('-').map(Number)
-    return { date: `${MONTHS[(month ?? 1) - 1]} ${day}`, faults: Number(r.faults), fixed: Number(r.fixed) }
-  })
-}
+  const today = new Date().toISOString().slice(0, 10)
+  const fixedToday = faultsSnap.docs.filter(
+    (d) => d.data().status === 'fixed' && d.data().detectionTime?.slice(0, 10) === today,
+  ).length
+  const underMaintenance = tasksSnap.docs.filter((d) =>
+    ['pending', 'in_progress'].includes(d.data().status),
+  ).length
 
-export function getFaultByType(stationId?: string | null): { name: string; value: number }[] {
-  const rows = (
-    stationId
-      ? db.prepare('SELECT fault_type AS name, COUNT(*) AS value FROM faults WHERE station_id = ? GROUP BY fault_type ORDER BY value DESC').all(stationId)
-      : db.prepare('SELECT * FROM v_fault_by_type').all()
-  ) as { name: string; value: number }[]
-  return rows.map((r) => ({
-    name: r.name,
-    value: Number(r.value),
-  }))
-}
+  const stationsCount = stationId ? 1 : (await firestore.collection(COL.stations).count().get()).data().count
 
-export function getMonthlyStats(stationId?: string | null): { month: string; faults: number; fixed: number; maintenance: number }[] {
-  const rows = (
-    stationId
-      ? db.prepare(
-          `SELECT strftime('%Y-%m', f.detection_time) AS month, COUNT(DISTINCT f.id) AS faults,
-                  SUM(CASE WHEN f.status = 'fixed' THEN 1 ELSE 0 END) AS fixed,
-                  COUNT(DISTINCT m.id) AS maintenance
-             FROM faults f LEFT JOIN maintenance_tasks m ON m.fault_id = f.id
-            WHERE f.station_id = ?
-            GROUP BY strftime('%Y-%m', f.detection_time) ORDER BY month`,
-        ).all(stationId)
-      : db.prepare('SELECT * FROM v_monthly_stats').all()
-  ) as {
-    month: string
-    faults: number
-    fixed: number
-    maintenance: number
-  }[]
-  return rows.map((r) => {
-    const monthIndex = Number(r.month.split('-')[1]) - 1
-    return { month: MONTHS[monthIndex] ?? r.month, faults: Number(r.faults), fixed: Number(r.fixed), maintenance: Number(r.maintenance) }
-  })
-}
-
-export function getFaultByStation(stationId?: string | null): { name: string; faults: number }[] {
-  if (stationId) {
-    return (db.prepare('SELECT name FROM stations WHERE id = ?').all(stationId) as { name: string }[])
-      .map((s) => ({ name: s.name, faults: 0 }))
+  return {
+    totalStations: stationsCount,
+    totalTracks: tracksSnap.size,
+    activeFaults,
+    criticalFaults,
+    fixedToday,
+    underMaintenance,
+    systemStatus: criticalFaults > 0 ? 'critical' : activeFaults > 0 ? 'degraded' : 'operational',
   }
-  return (db.prepare('SELECT * FROM v_fault_by_station').all() as { name: string; faults: number }[]).map((r) => ({
-    name: r.name,
-    faults: Number(r.faults),
-  }))
+}
+
+function dayOf(iso?: string): string {
+  return iso?.slice(0, 10) ?? ''
+}
+
+export async function getFaultTrend(stationId?: string | null): Promise<{ date: string; faults: number; fixed: number }[]> {
+  let q = firestore.collection(COL.faults) as FirebaseFirestore.Query
+  if (stationId) q = q.where('stationId', '==', stationId)
+  const snap = await q.get()
+
+  const byDay = new Map<string, { faults: number; fixed: number }>()
+  for (const d of snap.docs) {
+    const day = dayOf(d.data().detectionTime)
+    if (!day) continue
+    const agg = byDay.get(day) ?? { faults: 0, fixed: 0 }
+    agg.faults++
+    if (d.data().status === 'fixed') agg.fixed++
+    byDay.set(day, agg)
+  }
+
+  return [...byDay.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([day, agg]) => {
+      const [, month, dNum] = day.split('-').map(Number)
+      return { date: `${MONTHS[(month ?? 1) - 1]} ${dNum}`, ...agg }
+    })
+}
+
+export async function getFaultByType(stationId?: string | null): Promise<{ name: string; value: number }[]> {
+  let q = firestore.collection(COL.faults) as FirebaseFirestore.Query
+  if (stationId) q = q.where('stationId', '==', stationId)
+  const snap = await q.get()
+
+  const byType = new Map<string, number>()
+  for (const d of snap.docs) {
+    const name = d.data().faultType || 'unknown'
+    byType.set(name, (byType.get(name) ?? 0) + 1)
+  }
+  return [...byType.entries()]
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value)
+}
+
+export async function getMonthlyStats(
+  stationId?: string | null,
+): Promise<{ month: string; faults: number; fixed: number; maintenance: number }[]> {
+  let q = firestore.collection(COL.faults) as FirebaseFirestore.Query
+  if (stationId) q = q.where('stationId', '==', stationId)
+
+  const [faultsSnap, tasksSnap] = await Promise.all([q.get(), firestore.collection(COL.maintenanceTasks).get()])
+  const tasksByFault = new Set(tasksSnap.docs.map((d) => d.data().faultId))
+
+  const byMonth = new Map<string, { faults: number; fixed: number; maintenance: number }>()
+  for (const d of faultsSnap.docs) {
+    const f = d.data()
+    const month = dayOf(f.detectionTime).slice(0, 7)
+    if (!month) continue
+    const agg = byMonth.get(month) ?? { faults: 0, fixed: 0, maintenance: 0 }
+    agg.faults++
+    if (f.status === 'fixed') agg.fixed++
+    if (tasksByFault.has(d.id)) agg.maintenance++
+    byMonth.set(month, agg)
+  }
+
+  return [...byMonth.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, agg]) => ({
+      month: MONTHS[Number(month.split('-')[1]) - 1] ?? month,
+      ...agg,
+    }))
+}
+
+export async function getFaultByStation(stationId?: string | null): Promise<{ name: string; faults: number }[]> {
+  if (stationId) {
+    const snap = await firestore.collection(COL.stations).doc(stationId).get()
+    return snap.exists ? [{ name: snap.data()?.name, faults: 0 }] : []
+  }
+
+  const [stationsSnap, faultsSnap] = await Promise.all([
+    firestore.collection(COL.stations).orderBy('name').get(),
+    firestore.collection(COL.faults).get(),
+  ])
+  const countByStation = new Map<string, number>()
+  for (const d of faultsSnap.docs) {
+    const sid = d.data().stationId
+    countByStation.set(sid, (countByStation.get(sid) ?? 0) + 1)
+  }
+  return stationsSnap.docs.map((d) => ({ name: d.data().name, faults: countByStation.get(d.id) ?? 0 }))
 }

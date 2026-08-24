@@ -1,62 +1,68 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import { db } from '../db/index.js'
-import { env } from '../config/env.js'
 import { ApiError } from '../middleware/errorHandler.js'
+import { COL, firestore } from '../db/index.js'
+import { env } from '../config/env.js'
 import type { User } from '../types/index.js'
 
-interface UserRow {
-  id: number
+interface UserDoc {
   username: string
-  password_hash: string
+  passwordHash: string
   name: string
   role: User['role']
   email: string | null
-  avatar: string | null
-  station_id: string | null
+  avatar?: string | null
+  stationId: string | null
 }
 
-function toUser(row: UserRow): User {
-  const station = row.station_id
-    ? (db.prepare('SELECT name FROM stations WHERE id = ?').get(row.station_id) as { name: string } | undefined)
-    : undefined
+function toUser(id: string, d: FirebaseFirestore.DocumentData): User {
   return {
-    id: String(row.id),
-    username: row.username,
-    name: row.name,
-    role: row.role,
-    email: row.email ?? undefined,
-    avatar: row.avatar ?? undefined,
-    station: station?.name,
-    stationId: row.station_id ?? undefined,
+    id,
+    username: d.username,
+    name: d.name,
+    role: d.role,
+    email: d.email ?? undefined,
+    avatar: d.avatar ?? undefined,
+    stationId: d.stationId ?? undefined,
   }
 }
 
-export function login(
+async function findUserRow(row: {
+  byUsername?: string
+  byStationRole?: { stationId: string; role: string }
+}): Promise<{ id: string; doc: UserDoc } | undefined> {
+  let q = firestore.collection(COL.users) as FirebaseFirestore.Query
+  if (row.byUsername) q = q.where('username', '==', row.byUsername)
+  if (row.byStationRole) {
+    q = q.where('stationId', '==', row.byStationRole.stationId).where('role', '==', row.byStationRole.role)
+  }
+  const snap = await q.limit(1).get()
+  if (snap.empty) return undefined
+  const d = snap.docs[0]!
+  return { id: d.id, doc: d.data() as UserDoc }
+}
+
+export async function login(
   role: string,
   username: string | null,
   stationId: string | null,
   password: string,
-): { token: string; user: User } {
-  let row: UserRow | undefined
+): Promise<{ token: string; user: User }> {
+  let found: { id: string; doc: UserDoc } | undefined
 
   if (role === 'railway_administrator') {
-    // Admin: username diye login
-    row = db.prepare('SELECT * FROM users WHERE username = ?').get(username ?? '') as UserRow | undefined
+    found = await findUserRow({ byUsername: username ?? '' })
   } else if (role === 'station_incharge' || role === 'maintenance_team') {
-    // Incharge/Maintenance: Station ID + password, oi role-er user
-    row = db
-      .prepare('SELECT * FROM users WHERE station_id = ? AND role = ?')
-      .get(stationId ?? '', role) as UserRow | undefined
+    found = await findUserRow({ byStationRole: { stationId: stationId ?? '', role } })
   } else {
     throw new ApiError(400, 'Invalid role')
   }
 
-  if (!row || !bcrypt.compareSync(password, row.password_hash)) {
+  if (!found || !bcrypt.compareSync(password, found.doc.passwordHash)) {
     throw new ApiError(401, 'Invalid credentials. Please check and try again.')
   }
 
-  const user = toUser(row)
+  const user = toUser(found.id, found.doc as unknown as FirebaseFirestore.DocumentData)
   return { token: signToken(user), user }
 }
 
@@ -68,48 +74,47 @@ export function signToken(user: User): string {
   )
 }
 
-export function getUserById(id: number): User {
-  const row = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow | undefined
-  if (!row) throw new ApiError(404, 'User not found')
-  return toUser(row)
+async function requireUserRow(id: number | string): Promise<FirebaseFirestore.QueryDocumentSnapshot> {
+  const snap = await firestore.collection(COL.users).doc(String(id)).get()
+  if (!snap.exists) throw new ApiError(404, 'User not found')
+  return snap as FirebaseFirestore.QueryDocumentSnapshot
 }
 
-export function updateProfile(
+export async function getUserById(id: number): Promise<User> {
+  const snap = await requireUserRow(id)
+  const user = toUser(snap.id, snap.data())
+  if (user.stationId) {
+    const station = await firestore.collection(COL.stations).doc(user.stationId).get()
+    if (station.exists) user.station = station.data()?.name
+  }
+  return user
+}
+
+export async function updateProfile(
   id: number,
   data: { name?: string; email?: string; stationId?: string },
-): User {
-  const row = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow | undefined
-  if (!row) throw new ApiError(404, 'User not found')
+): Promise<User> {
+  await requireUserRow(id)
 
-  const sets: string[] = []
-  const params: Record<string, unknown> = { id }
-  if (data.name?.trim()) {
-    sets.push('name = @name')
-    params.name = data.name.trim()
-  }
-  if (data.email !== undefined) {
-    sets.push('email = @email')
-    params.email = data.email.trim() || null
-  }
-  if (data.stationId !== undefined) {
-    sets.push('station_id = @stationId')
-    params.stationId = data.stationId || null
-  }
-  if (sets.length > 0) {
-    db.prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = @id`).run(params)
+  const updates: Record<string, unknown> = {}
+  if (data.name?.trim()) updates.name = data.name.trim()
+  if (data.email !== undefined) updates.email = data.email.trim() || null
+  if (data.stationId !== undefined) updates.stationId = data.stationId || null
+
+  if (Object.keys(updates).length > 0) {
+    await firestore.collection(COL.users).doc(String(id)).update(updates)
   }
   return getUserById(id)
 }
 
-export function changePassword(id: number, currentPassword: string, newPassword: string): void {
+export async function changePassword(id: number, currentPassword: string, newPassword: string): Promise<void> {
   if (!newPassword || newPassword.length < 8) {
     throw new ApiError(400, 'New password must be at least 8 characters')
   }
-  const row = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow | undefined
-  if (!row) throw new ApiError(404, 'User not found')
-  if (!bcrypt.compareSync(currentPassword, row.password_hash)) {
+  const snap = await requireUserRow(id)
+  const row = snap.data() as UserDoc
+  if (!bcrypt.compareSync(currentPassword, row.passwordHash)) {
     throw new ApiError(401, 'Current password is incorrect')
   }
-  const hash = bcrypt.hashSync(newPassword, 10)
-  db.prepare('UPDATE users SET password_hash = @hash WHERE id = @id').run({ hash, id })
+  await snap.ref.update({ passwordHash: bcrypt.hashSync(newPassword, 10) })
 }

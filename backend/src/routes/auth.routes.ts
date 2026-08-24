@@ -5,7 +5,7 @@ import { ApiError } from '../middleware/errorHandler.js'
 
 const router = Router()
 
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   const { role, username, stationId, password } = (req.body ?? {}) as {
     role?: string
     username?: string
@@ -13,24 +13,24 @@ router.post('/login', (req, res) => {
     password?: string
   }
   if (!role || !password) throw new ApiError(400, 'role and password are required')
-  res.json(authService.login(String(role), username ? String(username) : null, stationId ? String(stationId) : null, String(password)))
+  res.json(await authService.login(String(role), username ? String(username) : null, stationId ? String(stationId) : null, String(password)))
 })
 
-router.get('/me', authenticate, (req: AuthRequest, res) => {
-  res.json({ user: authService.getUserById(req.user!.id) })
+router.get('/me', authenticate, async (req: AuthRequest, res) => {
+  res.json({ user: await authService.getUserById(req.user!.id) })
 })
 
-router.put('/profile', authenticate, (req: AuthRequest, res) => {
+router.put('/profile', authenticate, async (req: AuthRequest, res) => {
   const { name, email, stationId } = (req.body ?? {}) as { name?: string; email?: string; stationId?: string }
-  const user = authService.updateProfile(req.user!.id, { name, email, stationId })
+  const user = await authService.updateProfile(req.user!.id, { name, email, stationId })
   // Fresh token issue kori jate updated name/role token-e thake
   res.json({ user, token: authService.signToken(user) })
 })
 
-router.put('/password', authenticate, (req: AuthRequest, res) => {
+router.put('/password', authenticate, async (req: AuthRequest, res) => {
   const { currentPassword, newPassword } = (req.body ?? {}) as { currentPassword?: string; newPassword?: string }
   if (!currentPassword || !newPassword) throw new ApiError(400, 'currentPassword and newPassword are required')
-  authService.changePassword(req.user!.id, String(currentPassword), String(newPassword))
+  await authService.changePassword(req.user!.id, String(currentPassword), String(newPassword))
   res.json({ ok: true })
 })
 

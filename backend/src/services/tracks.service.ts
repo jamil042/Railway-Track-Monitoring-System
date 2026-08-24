@@ -1,62 +1,113 @@
-import { db } from '../db/index.js'
+import { FieldValue } from 'firebase-admin/firestore'
 import { ApiError } from '../middleware/errorHandler.js'
+import { COL, firestore } from '../db/index.js'
 import type { Track } from '../types/index.js'
 
-const SELECT = `
-  SELECT id, station_id AS stationId, station_name AS stationName, status,
-         sensor_health AS sensorHealth, readings_updated_at AS lastUpdated, image_url AS imageUrl,
-         temperature, vibration, displacement,
-         baseline_distance AS baselineDistance, baseline_vibration AS baselineVibration,
-         ir_blocked AS irBlocked
-  FROM v_track_with_station`
-
-export function listTracks(stationId?: string | null): Track[] {
-  if (stationId) {
-    return db.prepare(`${SELECT} WHERE station_id = ? ORDER BY id`).all(stationId) as Track[]
-  }
-  return db.prepare(`${SELECT} ORDER BY id`).all() as Track[]
+interface TrackDoc {
+  stationId: string
+  stationName?: string
+  status: Track['status']
+  sensorHealth: number
+  imageUrl: string | null
+  temperature?: number | null
+  vibration?: number | null
+  displacement?: number | null
+  baselineDistance: number
+  baselineVibration: number
+  irBlocked: number
+  readingsUpdatedAt?: string | null
 }
 
-export function getTrack(id: string): Track {
-  const row = db.prepare(`${SELECT} WHERE id = ?`).get(id) as Track | undefined
-  if (!row) throw new ApiError(404, `Track '${id}' not found`)
-  return row
-}
-
-export function createTrack(data: Partial<Track>): Track {
-  const id = data.id?.trim() || `TR-${Date.now()}`
-  db.prepare(
-    `INSERT INTO tracks (id, station_id, status, sensor_health, image_url)
-     VALUES (@id, @stationId, @status, @sensorHealth, @imageUrl)`,
-  ).run({
+function toTrack(id: string, d: FirebaseFirestore.DocumentData): Track {
+  return {
     id,
+    stationId: d.stationId,
+    stationName: d.stationName,
+    status: d.status,
+    sensorHealth: d.sensorHealth,
+    lastUpdated: d.readingsUpdatedAt ?? undefined,
+    imageUrl: d.imageUrl ?? undefined,
+    temperature: d.temperature ?? undefined,
+    vibration: d.vibration ?? undefined,
+    displacement: d.displacement ?? undefined,
+    baselineDistance: d.baselineDistance,
+    baselineVibration: d.baselineVibration,
+    irBlocked: d.irBlocked,
+  } as Track
+}
+
+export async function listTracks(stationId?: string | null): Promise<Track[]> {
+  let q = firestore.collection(COL.tracks).orderBy('__name__') as FirebaseFirestore.Query
+  if (stationId) q = q.where('stationId', '==', stationId)
+  const snap = await q.get()
+  return snap.docs.map((d) => toTrack(d.id, d.data()))
+}
+
+export async function getTrackDoc(id: string): Promise<TrackDoc> {
+  const snap = await firestore.collection(COL.tracks).doc(id).get()
+  if (!snap.exists) throw new ApiError(404, `Track '${id}' not found`)
+  return snap.data() as TrackDoc
+}
+
+export async function getTrack(id: string): Promise<Track> {
+  const doc = await getTrackDoc(id)
+  return toTrack(id, doc as unknown as FirebaseFirestore.DocumentData)
+}
+
+export async function createTrack(data: Partial<Track>): Promise<Track> {
+  const id = data.id?.trim() || `TR-${Date.now()}`
+  const station = data.stationId
+    ? await firestore.collection(COL.stations).doc(data.stationId).get()
+    : undefined
+
+  await firestore.collection(COL.tracks).doc(id).set({
     stationId: data.stationId ?? '',
+    stationName: station?.exists ? station.data()?.name : null,
     status: data.status ?? 'safe',
     sensorHealth: data.sensorHealth ?? 100,
     imageUrl: data.imageUrl ?? null,
+    temperature: null,
+    vibration: null,
+    displacement: null,
+    baselineDistance: 20,
+    baselineVibration: 0,
+    irBlocked: 0,
+    readingsUpdatedAt: null,
   })
   return getTrack(id)
 }
 
-export function updateTrack(id: string, data: Partial<Track>): Track {
-  const current = db.prepare('SELECT * FROM tracks WHERE id = ?').get(id) as Track
-  if (!current) throw new ApiError(404, `Track '${id}' not found`)
+const TRACK_UPDATABLE = ['stationId', 'status', 'sensorHealth', 'imageUrl'] as const
 
-  db.prepare(
-    `UPDATE tracks
-     SET station_id = @stationId, status = @status, sensor_health = @sensorHealth, image_url = @imageUrl
-     WHERE id = @id`,
-  ).run({
-    id,
-    stationId: data.stationId ?? current.stationId,
-    status: data.status ?? current.status,
-    sensorHealth: data.sensorHealth ?? current.sensorHealth,
-    imageUrl: data.imageUrl ?? current.imageUrl,
-  })
+export async function updateTrack(id: string, data: Partial<Track>): Promise<Track> {
+  await getTrackDoc(id)
+  const updates: Record<string, unknown> = {}
+  for (const key of TRACK_UPDATABLE) {
+    if (data[key] !== undefined) updates[key] = data[key]
+  }
+  if (updates.stationId !== undefined) {
+    const station = await firestore.collection(COL.stations).doc(String(updates.stationId)).get()
+    updates.stationName = station.exists ? station.data()?.name : null
+  }
+  if (Object.keys(updates).length > 0) {
+    await firestore.collection(COL.tracks).doc(id).update(updates)
+  }
   return getTrack(id)
 }
 
-export function deleteTrack(id: string): void {
-  const result = db.prepare('DELETE FROM tracks WHERE id = ?').run(id)
-  if (result.changes === 0) throw new ApiError(404, `Track '${id}' not found`)
+export async function deleteTrack(id: string): Promise<void> {
+  const batch = firestore.batch()
+  batch.delete(firestore.collection(COL.tracks).doc(id))
+
+  // Cascade: delete child sensor readings (replaces ON DELETE CASCADE)
+  const readings = await firestore.collection(COL.sensorReadings).where('trackId', '==', id).get()
+  readings.docs.forEach((d) => batch.delete(d.ref))
+
+  // Set-null children (replaces ON DELETE SET NULL)
+  for (const col of [COL.faults, COL.maintenanceTasks, COL.devices]) {
+    const snap = await firestore.collection(col).where('trackId', '==', id).get()
+    snap.docs.forEach((d) => batch.update(d.ref, { trackId: null }))
+  }
+
+  await batch.commit()
 }
