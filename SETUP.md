@@ -5,6 +5,38 @@ React + Vite frontend · Express + Firebase Firestore backend · ESP32 sensors �
 
 ---
 
+## Prerequisites
+
+| Tool | Version | Why |
+|---|---|---|
+| Node.js | 22+ | Frontend + backend |
+| npm | 10+ | Package manager (lockfile committed) |
+| Python | 3.12+ | Camera / sensor pipeline |
+| **Git LFS** | latest | Binary files (images, YOLO `.pt` models) are LFS-tracked |
+
+> ⚠️ **Git LFS is mandatory.** `.gitattributes` only *declares* which files are
+> LFS-tracked — it does not install anything. Without it, `git pull` gives you
+> tiny pointer text files instead of real images/models and the app breaks.
+
+Install Git LFS once, then clone:
+
+```bash
+# Debian/Ubuntu
+sudo apt install git-lfs
+# macOS
+brew install git-lfs
+
+git lfs install                     # enables LFS for your user (one time)
+git clone <repo-url> && cd railway-track-monitoring
+git lfs pull                        # fetches real binary content if you cloned before installing
+```
+
+Verify the model downloaded properly (~6.5 MB — a 132-byte file means LFS did not run):
+
+```bash
+ls -la hardware/models/railway_yolov8n.pt
+```
+
 ## Quick Start
 
 ```bash
@@ -18,7 +50,11 @@ cd backend && npm install && cd ..
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt      # or: pip install -r requirements.txt
 
-# 4. Run everything (backend + frontend + camera + sensor fusion + simulator)
+# 4. Firebase: put your service account key in backend/ and set it in backend/.env
+#    FIREBASE_SERVICE_ACCOUNT_PATH=./<your>-firebase-adminsdk-*.json
+#    (see "Firebase setup" below)
+
+# 5. Run everything (backend + frontend + camera + sensor fusion + simulator)
 ./start_system.sh
 ```
 
@@ -71,27 +107,29 @@ Each station has 5 tracks. Currently live sensor data exists for ST01 (TR-001, T
     Maintenance Team can change only status/severity/remarks fields
 
 ### Database (Firebase Firestore)
-- The backend now uses **Firestore** via `firebase-admin` — SQLite is fully retired
+- The backend uses **Firestore** via `firebase-admin` — SQLite has been fully removed
 - Collections: `stations`, `tracks`, `users`, `faults`, `maintenance_tasks`,
   `notifications`, `devices`, `sensor_readings`, `alert_logs`, `_counters`
-- Numeric AUTOINCREMENT ids are preserved through transactional counters in `_counters`
-- The old `trg_track_latest_reading` trigger is ported into
-  `sensorReadings.service.ts` (`applyTrackTrigger`): EMA baselines + IR beam rule
-  update cached track values, sensor_health and status on every ingest
+- Numeric AUTOINCREMENT-style ids are generated through transactional counters in `_counters`
+- The old SQLite trigger is ported into `sensorReadings.service.ts` (`applyTrackTrigger`):
+  EMA baselines + IR beam rule update cached track values, sensor_health and status on
+  every ingest
 - SQL views are replaced by denormalized fields: `stationName` on tracks/faults,
   `stationId`/`stationName`/`faultType` on maintenance tasks; dashboard aggregates
   are computed in `dashboard.service.ts`
 
 #### Firebase setup (one time)
 1. Create a project at https://console.firebase.google.com and add **Firestore Database**
-2. Project Settings → Service accounts → Generate new private key → save as
-   `backend/serviceAccountKey.json` (do NOT commit it)
-3. Add to `backend/.env`:
+2. Project Settings → Service accounts → Generate new private key → save the JSON file
+   inside `backend/` (do NOT commit it — already gitignored)
+3. Add to `backend/.env` (adjust the filename to yours):
    ```
-   FIREBASE_SERVICE_ACCOUNT_PATH=./serviceAccountKey.json
+   FIREBASE_SERVICE_ACCOUNT_PATH=./<project>-firebase-adminsdk-fbsvc-xxxx.json
    ```
-4. Migrate existing data: `cd backend && npm run migrate` (optionally pass a path:
-5. Or start from scratch with seed data: `npm run seed`
+4. Seed initial data (12 stations, 60 tracks, users, devices):
+   ```
+   cd backend && npm run seed
+   ```
 
 ### Real-Time Data Pipeline
 - `hardware/track_simulator.py` (new): every **1.5 s** posts vibration/ultrasonic/ir_beam
@@ -127,7 +165,7 @@ Each station has 5 tracks. Currently live sensor data exists for ST01 (TR-001, T
 ### Backend API Fixes
 - Fault update endpoint: Maintenance Team restricted to status/severity/remarks only
 - Sensor readings ingest endpoint stays public (ESP32/Pi push telemetry without a session)
-- CORS enabled; DB connection uses WAL-friendly single connection pattern
+- CORS enabled; Firestore is accessed through a single shared Admin SDK client
 
 ---
 
@@ -135,6 +173,8 @@ Each station has 5 tracks. Currently live sensor data exists for ST01 (TR-001, T
 
 | Problem | Fix |
 |---|---|
+| YOLO model is a tiny text file / `Failed to load model` | Run `git lfs install && git lfs pull` — see Prerequisites |
+| Images broken / show as binary gibberish | Same — LFS files were pulled as pointers |
 | Login says "Cannot reach backend" | Start backend: `cd backend && npm run dev` |
 | Camera shows placeholder | Check `http://<ip>:8082/stream`; run `./start_system.sh` or start `camera_stream.py` manually |
 | `ModuleNotFoundError: cv2` | Use the venv python (launcher does automatically): `.venv/bin/python` |

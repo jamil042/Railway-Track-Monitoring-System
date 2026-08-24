@@ -19,3 +19,6 @@ ultralytics>=8.2
 
 # HTTP client used to POST telemetry/readings to the backend API
 requests>=2.31
+
+# ESP32 serial communication (sensor_fusion_dashboard / iot_ingest)
+pyserial>=3.5

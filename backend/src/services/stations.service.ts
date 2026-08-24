@@ -19,13 +19,10 @@ function toStation(id: string, d: FirebaseFirestore.DocumentData): Station {
  * small enough to aggregate client-side.
  */
 async function withActiveFaults(id: string, data: FirebaseFirestore.DocumentData): Promise<Station> {
-  const active = await firestore
-    .collection(COL.faults)
-    .where('stationId', '==', id)
-    .where('status', '!=', 'fixed')
-    .count()
-    .get()
-  return toStation(id, { ...data, activeFaults: active.data().count })
+  // Counted client-side to avoid a composite index (stationId + status != fixed).
+  const snap = await firestore.collection(COL.faults).where('stationId', '==', id).get()
+  const activeFaults = snap.docs.filter((d) => d.data().status !== 'fixed').length
+  return toStation(id, { ...data, activeFaults })
 }
 
 export async function listStations(stationId?: string | null): Promise<Station[]> {
