@@ -1,20 +1,26 @@
 import { Router } from 'express'
 import * as alerts from '../services/alerts.service.js'
-import { authenticate, type AuthRequest } from '../middleware/auth.js'
+import { authenticate, type AuthRequest, scopedStationId } from '../middleware/auth.js'
 import { ApiError } from '../middleware/errorHandler.js'
 
 const router = Router()
 
-router.get('/', async (_req, res) => {
-  res.json(await alerts.listAlerts())
+// Station users see only their station's alerts; admin sees all.
+router.get('/', authenticate, async (req: AuthRequest, res) => {
+  res.json(await alerts.listAlerts(scopedStationId(req)))
 })
 
-router.get('/:id', async (req, res) => {
+router.get('/:id', authenticate, async (req: AuthRequest, res) => {
   res.json(await alerts.getAlert(Number(req.params.id)))
 })
 
 router.post('/', authenticate, async (req, res) => {
-  res.status(201).json(await alerts.createAlert(req.body ?? {}))
+  const body = { ...(req.body ?? {}) }
+  if (body.stationId === 'AUTO') {
+    const { getActiveStation } = await import('../services/session.js')
+    body.stationId = getActiveStation()
+  }
+  res.status(201).json(await alerts.createAlert(body))
 })
 
 router.put('/:id/acknowledge', authenticate, async (req: AuthRequest, res) => {

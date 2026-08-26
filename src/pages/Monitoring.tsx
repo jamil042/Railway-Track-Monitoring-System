@@ -9,6 +9,14 @@ import { MdRadar, MdCheckCircle, MdWarning, MdDangerous } from 'react-icons/md';
 
 const PER_PAGE = 9;
 
+/** Ek page e ekmatro ekta live camera stream chole (prothonom hardware track). */
+function firstLiveId(tracks: { id: string }[]): string | undefined {
+  return tracks.find(t => {
+    const seq = parseInt(t.id.replace('TR-', ''), 10);
+    return Number.isFinite(seq) && seq % 5 === 1;
+  })?.id;
+}
+
 const STATUS_FILTERS: { label: string; value: TrackStatus | 'all'; icon: typeof MdCheckCircle; iconColor: string; bg: string; border: string }[] = [
   { label: 'All Tracks', value: 'all', icon: MdRadar, iconColor: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-200' },
   { label: 'Safe', value: 'safe', icon: MdCheckCircle, iconColor: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200' },
@@ -123,7 +131,13 @@ export default function Monitoring() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {paged.map(t => <TrackCard key={t.id} track={t} />)}
+          {paged.map(t => (
+            <TrackCard
+              key={t.id}
+              track={t}
+              liveCam={t.id === firstLiveId(paged)}
+            />
+          ))}
         </div>
       )}
 

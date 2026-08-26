@@ -42,10 +42,26 @@ function initFirebase(): App {
   return initializeApp(env.firebaseProjectId ? { projectId: env.firebaseProjectId } : {})
 }
 
-initFirebase()
+let firestore: Firestore
+try {
+  initFirebase()
+  const fb = getFirestore()
+  // Firestore is lazy — force one tiny read so quota/auth errors surface NOW,
+  // while we can still fall back to the in-memory store.
+  await fb.collection('_health_probe').limit(1).get()
+  firestore = fb
+  console.log('[DB] Connected to Firebase Firestore')
+} catch (err) {
+  // Quota exhausted / credentials missing — run on the RTDB-mirrored store:
+  // same tables, persisted in Realtime Database (NO per-op quota), so the
+  // system keeps working AND data survives restarts.
+  console.error(`[DB] Firebase unavailable: ${(err as Error).message}`)
+  console.warn('[DB] Falling back to RTDB-MIRRORED storage (persistent, quota-free).')
+  const { createRtdbMirrorFirestore } = await import('./rtdb_fallback.js')
+  firestore = await createRtdbMirrorFirestore()
+}
 
-export const firestore = getFirestore()
-
+export { firestore }
 export const COL = {
   stations: 'stations',
   tracks: 'tracks',

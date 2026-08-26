@@ -1,6 +1,7 @@
 import { FieldValue } from 'firebase-admin/firestore'
 import { ApiError } from '../middleware/errorHandler.js'
 import { COL, firestore } from '../db/index.js'
+import { getAllLiveOverlay } from './sensorReadings.service.js'
 import type { Track } from '../types/index.js'
 
 interface TrackDoc {
@@ -40,7 +41,11 @@ export async function listTracks(stationId?: string | null): Promise<Track[]> {
   let q = firestore.collection(COL.tracks).orderBy('__name__') as FirebaseFirestore.Query
   if (stationId) q = q.where('stationId', '==', stationId)
   const snap = await q.get()
-  return snap.docs.map((d) => toTrack(d.id, d.data()))
+
+  // Live telemetry overlay served from the in-memory hot cache (zero latency).
+  const live = getAllLiveOverlay()
+
+  return snap.docs.map((d) => toTrack(d.id, { ...d.data(), ...(live[d.id] ?? {}) }))
 }
 
 export async function getTrackDoc(id: string): Promise<TrackDoc> {
@@ -51,7 +56,8 @@ export async function getTrackDoc(id: string): Promise<TrackDoc> {
 
 export async function getTrack(id: string): Promise<Track> {
   const doc = await getTrackDoc(id)
-  return toTrack(id, doc as unknown as FirebaseFirestore.DocumentData)
+  const live = getAllLiveOverlay()[id] ?? {}
+  return toTrack(id, { ...doc, ...live } as unknown as FirebaseFirestore.DocumentData)
 }
 
 export async function createTrack(data: Partial<Track>): Promise<Track> {

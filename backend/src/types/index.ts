@@ -142,4 +142,5 @@ export interface AlertLog {
   sentAt: string
   acknowledgedAt?: string
   acknowledgedBy?: number
+  stationId?: string | null
 }

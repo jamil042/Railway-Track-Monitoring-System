@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { ApiError } from '../middleware/errorHandler.js'
 import { COL, firestore } from '../db/index.js'
+import { setActiveStation } from './session.js'
 import { env } from '../config/env.js'
 import type { User } from '../types/index.js'
 
@@ -63,6 +64,9 @@ export async function login(
   }
 
   const user = toUser(found.id, found.doc as unknown as FirebaseFirestore.DocumentData)
+  // Demo mode: station user login korle ei device er detection ekhon oi
+  // station e route hobe (single-device setup).
+  if (user.stationId) setActiveStation(user.stationId)
   return { token: signToken(user), user }
 }
 

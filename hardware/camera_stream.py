@@ -53,32 +53,72 @@ def capture_loop(use_pi: bool, do_detect: bool, model_path: str):
         time.sleep(1)
         read_frame = lambda: cv2.cvtColor(picam2.capture_array(), cv2.COLOR_RGB2BGR)
     else:
-        cap = cv2.VideoCapture(0)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-        if not cap.isOpened():
-            print("[FAIL] Camera index 0 খোলা যায়নি")
+        # USB camera — index reboot/USB reset er por change hote pare,
+        # tai 0,1,2 try kore jeitay frame ashe seta use koro.
+        cap = None
+        for idx in (0, 1, 2):
+            c = cv2.VideoCapture(idx)
+            c.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            c.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            if c.isOpened():
+                ok, test_frame = c.read()
+                if ok and test_frame is not None:
+                    cap = c
+                    print(f"[STREAM] Using camera index {idx}")
+                    break
+                c.release()
+        if cap is None or not cap.isOpened():
+            print("[FAIL] Kono camera tei frame pawa jay ni")
             return
+        capture_loop._idx = idx  # reconnect er somoy ei index e abar khulbe
         read_frame = lambda: cap.read()[1]
 
     print("[STREAM] Camera capture started")
 
+    # SMOOTH STREAMING: frame capture + JPEG encode prottek loop e chole
+    # (~30fps), kintu YOLO inference CPU-heavy — tai alada interval e chole.
+    # Video smooth thake, detection box ~1s por por update hoy.
+    DETECT_INTERVAL_SEC = 1.0
+    last_detect = 0.0
+    last_result_snapshot = None
+
     while True:
         frame = read_frame()
         if frame is None:
-            time.sleep(0.05)
+            # Camera hang/reset hole abar open korar try koro
+            failures = getattr(capture_loop, "_fails", 0) + 1
+            capture_loop._fails = failures
+            time.sleep(0.2)
+            if failures >= 25:
+                print("[STREAM] Frame aschhe na — camera reconnect...")
+                if not use_pi and cap:
+                    cap.release()
+                    time.sleep(1)
+                    cap.open(getattr(capture_loop, "_idx", 0))
+                capture_loop._fails = 0
             continue
+        capture_loop._fails = 0
 
-        if detector:
-            result = detector.detect(frame)
-            frame = detector.draw_overlay(frame, result)
-            status_line = f"AI:{result.ai_score:.0f} [{result.ai_status}] {result.top_defect or '-'}"
+        now = time.time()
+
+        # YOLO inference alada cadence e — stream ke block kore na
+        if detector and (now - last_detect) >= DETECT_INTERVAL_SEC:
+            last_detect = now
+            try:
+                result = detector.detect(frame)
+                last_result_snapshot = result
+                with result_lock:
+                    latest_result = result
+            except Exception as e:
+                print(f"[YOLO] detect error: {e}")
+
+        if detector and last_result_snapshot is not None:
+            frame = detector.draw_overlay(frame, last_result_snapshot)
+            status_line = f"AI:{last_result_snapshot.ai_score:.0f} [{last_result_snapshot.ai_status}] {last_result_snapshot.top_defect or '-'}"
             cv2.putText(frame, status_line, (10, 25), cv2.FONT_HERSHEY_SIMPLEX,
                         0.6, (0, 255, 0), 2)
-            with result_lock:
-                latest_result = result
 
-        _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
         with frame_lock:
             latest_frame = buffer.tobytes()
 
@@ -92,7 +132,7 @@ def generate_stream():
             continue
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-        time.sleep(0.03)
+        time.sleep(0.033)  # 30 fps — smooth real-time video
 
 
 HTML_PAGE = """
@@ -144,6 +184,7 @@ def detection():
         "top_confidence": result.top_confidence,
         "fastener_detected_count": result.fastener_detected_count,
         "missing_fastener": result.missing_fastener,
+        "detections": result.detections,
     })
 
 

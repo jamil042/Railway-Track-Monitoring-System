@@ -14,14 +14,15 @@ function toAlert(id: string, d: FirebaseFirestore.DocumentData): AlertLog {
     sentAt: d.sentAt,
     acknowledgedAt: d.acknowledgedAt ?? null,
     acknowledgedBy: d.acknowledgedBy ?? null,
+    stationId: d.stationId ?? null,
   } as AlertLog
 }
 
-export async function listAlerts(): Promise<AlertLog[]> {
-  const snap = await firestore.collection(COL.alertLogs).get()
-  return snap.docs
-    .map((d) => toAlert(d.id, d.data()))
-    .sort((a, b) => (a.sentAt < b.sentAt ? 1 : -1))
+export async function listAlerts(stationId?: string | null): Promise<AlertLog[]> {
+  let snap = await firestore.collection(COL.alertLogs).get()
+  let alerts = snap.docs.map((d) => toAlert(d.id, d.data()))
+  if (stationId) alerts = alerts.filter((a) => a.stationId === stationId)
+  return alerts.sort((a, b) => (a.sentAt < b.sentAt ? 1 : -1))
 }
 
 export async function getAlert(id: number): Promise<AlertLog> {
@@ -42,6 +43,7 @@ export async function createAlert(data: Partial<AlertLog>): Promise<AlertLog> {
     channel: data.channel ?? 'lora',
     message: data.message ?? '',
     severity: data.severity ?? 'medium',
+    stationId: data.stationId ?? null,
     sentAt: data.sentAt ?? new Date().toISOString(),
     acknowledgedAt: null,
     acknowledgedBy: null,

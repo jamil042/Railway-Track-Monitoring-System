@@ -82,10 +82,9 @@ sleep 1
 PY_BIN="$PWD/.venv/bin/python"
 [ -x "$PY_BIN" ] || PY_BIN="python3"
 
-# 3. Camera stream (camera-r ekmatro owner)
-# Tomar external/USB camera ache bole "--pi" flag deya hoyni — USB webcam
-# default. Pi Camera Module use korle "python3 camera_stream.py --pi" koro.
-start_process "camera_stream" "$RAILWAY_DIR" "$PY_BIN camera_stream.py --port 8082"
+# 3. Camera stream (camera-r ekmatro owner) — crash hole auto-restart hoy
+#    (watchdog loop: process morle 2s por abar chalu hoy)
+start_process "camera_stream" "$RAILWAY_DIR" "while true; do $PY_BIN camera_stream.py --port 8082; echo '[WATCHDOG] camera_stream died, restarting in 2s...'; sleep 2; done"
 sleep 2   # YOLO model load howar shomoy dao
 
 # 4. Sensor fusion (ESP32 serial + camera_stream theke detection poll)
@@ -93,7 +92,9 @@ start_process "sensor_fusion" "$RAILWAY_DIR" "$PY_BIN sensor_fusion_dashboard.py
 
 # 5. Track simulator — sob track-er jonno 1.5s por por sensor data generate kore
 #    database-e pathay (choto base value x variation, protita track-er alada)
-start_process "track_simulator" "$RAILWAY_DIR" "$PY_BIN -u track_simulator.py --interval 1.5"
+# Track simulator BONDHO — ekhon shudhu TR-001 te real hardware (ESP32+camera)
+# chole, baki card gula static. Simulator lagle niche er line uncomment koro:
+# start_process "track_simulator" "$RAILWAY_DIR" "$PY_BIN -u track_simulator.py --interval 1.5 --exclude TR-001"
 
 FRONTEND_PORT="${PORT:-8443}"
 echo ""

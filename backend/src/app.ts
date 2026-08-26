@@ -3,6 +3,7 @@ import cors from 'cors'
 import routes from './routes/index.js'
 import { env } from './config/env.js'
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js'
+import { cacheMiddleware } from './middleware/cache.js'
 
 export function createApp(): express.Express {
   const app = express()
@@ -14,7 +15,9 @@ export function createApp(): express.Express {
     res.json({ status: 'ok' })
   })
 
-  app.use('/api', routes)
+  // Serve repeated GET polls from memory (1.5s TTL) — keeps Firestore read
+  // quota usage tiny while the frontend still refreshes every 1.5s.
+  app.use('/api', cacheMiddleware(1500), routes)
 
   app.use(notFoundHandler)
   app.use(errorHandler)

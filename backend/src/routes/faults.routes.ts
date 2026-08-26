@@ -16,9 +16,17 @@ router.get('/:id', authenticate, async (req: AuthRequest, res) => {
 })
 
 // Fault creation happens from the sensor pipeline (authenticates with admin
-// credentials) — incharge/maintenance cannot create faults manually.
+// token). stationId "AUTO" = route to the currently active station
+// (sob shesh je station user login korse) — single-device demo mode.
 router.post('/', authenticate, requireAdmin, async (req, res) => {
-  res.status(201).json(await faults.createFault(req.body ?? {}))
+  const body = { ...(req.body ?? {}) }
+  if (body.stationId === 'AUTO') {
+    const { getActiveStation, firstTrackOfStation } = await import('../services/session.js')
+    const stationId = getActiveStation()
+    body.stationId = stationId
+    if (!body.trackId) body.trackId = firstTrackOfStation(stationId)
+  }
+  res.status(201).json(await faults.createFault(body))
 })
 
 // Maintenance Team + Admin can update fault status; Station Incharge cannot.
