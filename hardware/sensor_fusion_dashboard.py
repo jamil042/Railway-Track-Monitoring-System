@@ -43,6 +43,7 @@ class SimpleCamResult:
         self.top_confidence = data.get("top_confidence", 0.0)
         self.fastener_detected_count = data.get("fastener_detected_count", 0)
         self.missing_fastener = data.get("missing_fastener", False)
+        self.detections = data.get("detections", [])
 
 
 def fetch_camera_detection():
@@ -66,15 +67,23 @@ BACKEND_URL = "http://localhost:5000"
 DEVICE_ID = 1
 # এখন single-track prototype বলে হার্ডকোড করা — একাধিক track/ESP32 node হলে এখানে
 # device serial number অনুযায়ী trackId mapping বসাও
-TRACK_ID = "TR-001"
+# Prottek station er prothonom track (TR-001, TR-006, TR-011, ... TR-056) —
+# ek e camera + ESP32 er live data shob gulote jabe (12 station x 1 card).
+TRACK_IDS = [f"TR-{str(seq).zfill(3)}" for seq in range(1, 61, 5)]
+TRACK_ID = TRACK_IDS[0]  # alert message er jonno
 
-# --- Calibration baselines (healthy-track data দিয়ে বসাও, proposal-এর সুপারিশ) ---
+# --- Calibration baselines (prototype hardware spec) ---
+# Ultrasonic: mounted 20cm above track
+#   ≤20cm → normal, 20-25cm → warning, >25cm → critical (track displaced)
 ULTRASONIC_NORMAL_CM = 20.0
-ULTRASONIC_WARNING_DEV = 3.0      # ±3cm পর্যন্ত Warning
-ULTRASONIC_EMERGENCY_DEV = 6.0    # তার বেশি হলে Emergency
+ULTRASONIC_WARNING_CM = 25.0
 
-VIBRATION_WARNING_COUNT = 3       # প্রতি 500ms window-এ digital pulse count
-VIBRATION_EMERGENCY_COUNT = 8
+# Vibration: SW-420 pulse count per 500ms window
+#   Normal 25-30 Hz ≈ 12-15 pulses → safe
+#   Resonance 50-80 Hz ≈ 25-40 pulses → warning
+#   High-freq defect 100-400 Hz ≥ 50 pulses → critical
+VIBRATION_WARNING_COUNT = 25     # 50 Hz — Resonance & Looseness range
+VIBRATION_CRITICAL_COUNT = 50    # 100 Hz — High-Frequency Defect range
 
 WEIGHTS = {"ai": 0.50, "vibration": 0.20, "distance": 0.15, "ir": 0.15}
 FUSION_INTERVAL = 1.0             # সেকেন্ডে একবার fused score বের করবে
@@ -129,10 +138,10 @@ class SerialWorker(threading.Thread):
 # ==================== Scoring functions ====================
 def score_vibration(v1, v2):
     v = max(v1, v2)
-    if v >= VIBRATION_EMERGENCY_COUNT:
+    if v >= VIBRATION_CRITICAL_COUNT:
         return 100.0
     if v >= VIBRATION_WARNING_COUNT:
-        span = VIBRATION_EMERGENCY_COUNT - VIBRATION_WARNING_COUNT
+        span = VIBRATION_CRITICAL_COUNT - VIBRATION_WARNING_COUNT
         return 30 + 70 * (v - VIBRATION_WARNING_COUNT) / max(span, 1)
     return 30 * (v / max(VIBRATION_WARNING_COUNT, 1))
 
@@ -140,14 +149,15 @@ def score_vibration(v1, v2):
 def score_distance(u1, u2):
     readings = [u for u in (u1, u2) if u and u > 0]
     if not readings:
-        return 60.0  # sensor error/out-of-range হলে সন্দেহজনক ধরা হচ্ছে
-    dev = max(abs(u - ULTRASONIC_NORMAL_CM) for u in readings)
-    if dev >= ULTRASONIC_EMERGENCY_DEV:
-        return 100.0
-    if dev >= ULTRASONIC_WARNING_DEV:
-        span = ULTRASONIC_EMERGENCY_DEV - ULTRASONIC_WARNING_DEV
-        return 30 + 70 * (dev - ULTRASONIC_WARNING_DEV) / max(span, 1e-6)
-    return 30 * (dev / max(ULTRASONIC_WARNING_DEV, 1e-6))
+        return 60.0
+    # INVERTED: >20cm = warning, >25cm = critical
+    max_reading = max(readings)
+    if max_reading > ULTRASONIC_WARNING_CM:
+        return 100.0  # critical
+    if max_reading > ULTRASONIC_NORMAL_CM:
+        # Linear warning: 20cm→30, 25cm→80
+        return 30 + 50 * (max_reading - ULTRASONIC_NORMAL_CM) / (ULTRASONIC_WARNING_CM - ULTRASONIC_NORMAL_CM)
+    return 0.0  # ≤20cm = normal
 
 
 def score_ir(i1, i2):
@@ -243,7 +253,9 @@ def draw_fused_dashboard(sensor_data, cam_result, scores, final_score, raw_statu
 # ==================== Backend API Integration ====================
 def send_alert_to_backend(confirmed_status, cam_result, sensor_data, final_score):
     try:
+        # role field TA-OMRA: backend er login e role lagbe, na hole 400
         login_resp = requests.post(f"{BACKEND_URL}/api/auth/login", json={
+            "role": "railway_administrator",
             "username": "admin",
             "password": "admin123"
         }, timeout=3)
@@ -259,9 +271,11 @@ def send_alert_to_backend(confirmed_status, cam_result, sensor_data, final_score
         elif final_score > 50:
             fault_type = "Sensor Anomaly"
 
+        # stationId "AUTO" = backend je station e shesh login korse sei
+        # station er fault/alert banabe (single-device demo mode).
         fault_payload = {
-            "stationId": "st1",
-            "trackId": TRACK_ID,
+            "stationId": "AUTO",
+            "trackId": "",
             "faultType": fault_type,
             "severity": severity,
             "status": "active",
@@ -269,25 +283,29 @@ def send_alert_to_backend(confirmed_status, cam_result, sensor_data, final_score
             "sensorValues": sensor_data,
             "description": f"Auto-detected by sensor fusion. Score: {final_score:.1f}/100"
         }
-        fault_resp = requests.post(f"{BACKEND_URL}/api/faults", json=fault_payload, headers=headers, timeout=3)
-        fault_resp.raise_for_status()
-        fault_id = fault_resp.json().get("id")
+        try:
+            fault_resp = requests.post(f"{BACKEND_URL}/api/faults", json=fault_payload, headers=headers, timeout=3)
+            fault_resp.raise_for_status()
+            fault_id = fault_resp.json().get("id")
 
-        alert_payload = {
-            "faultId": fault_id,
-            "deviceId": DEVICE_ID,
-            "destination": "station_display",
-            "channel": "lora",
-            "message": f"{confirmed_status} Alert: {fault_type} detected on track {TRACK_ID}",
-            "severity": severity
-        }
-        requests.post(f"{BACKEND_URL}/api/alerts", json=alert_payload, headers=headers, timeout=3)
+            alert_payload = {
+                "faultId": fault_id,
+                "deviceId": DEVICE_ID,
+                "destination": "station_display",
+                "channel": "lora",
+                "message": f"{confirmed_status} Alert: {fault_type} detected by live sensor",
+                "severity": severity,
+                "stationId": "AUTO"
+            }
+            requests.post(f"{BACKEND_URL}/api/alerts", json=alert_payload, headers=headers, timeout=3)
+        except Exception:
+            pass
 
     except Exception:
         pass  # Silently fail if backend is not running during prototype
 
 
-def send_telemetry_to_backend(sensor_data):
+def send_telemetry_to_backend(sensor_data, cam_result=None):
     """
     ESP32-এর raw sensor_data থেকে তিনটা reading তৈরি করে backend-এ পাঠায়, যেগুলো
     Monitoring.tsx-এর TrackCard তিনটা card-এ দেখায়:
@@ -295,42 +313,49 @@ def send_telemetry_to_backend(sensor_data):
       - "ultrasonic" -> Disp. card (baseline থেকে deviation, mm-এ কনভার্ট করা)
       - "ir_beam"    -> Object card (0 = obstacle/gap detected, 1 = clear)
 
-    NOTE: backend-এর types/index.ts + schema.sql-এ sensor_type কে CHECK
-    constraint দিয়ে শুধু ('ir_beam','ultrasonic','vibration','temperature','camera')
-    এই মানগুলোতে সীমাবদ্ধ রাখা হয়েছে — অন্য কোনো নাম পাঠালে DB insert silently
-    fail করবে (try/except-এর কারণে কোনো error ও দেখাবে না)। তাই এখানে ঠিক এই
-    নামগুলোই ব্যবহার করা হচ্ছে।
+    ir_beam এখন camera YOLO detection-ও combine করে: hardware IR beam NA thakle
+    (ba thakleo) camera-te object detect holei obstacle dikhabe.
     """
-    if not sensor_data:
+    if not sensor_data and cam_result is None:
         return
 
     now = datetime.utcnow().isoformat() + "Z"
     readings = []
 
+    # --- Object/obstacle state: shudhu hardware IR sensor theke ---
+    # (camera YOLO detection object card e count hoy na)
+    has_ir_hw = "I1" in sensor_data or "I2" in sensor_data
+
+    if has_ir_hw:
+        obstacle_state = 0 if (sensor_data.get("I1", 1) == 0 or sensor_data.get("I2", 1) == 0) else 1
+        readings.append({"sensorType": "ir_beam", "value": obstacle_state, "unit": "state"})
+
     if "V1" in sensor_data or "V2" in sensor_data:
         vib = max(sensor_data.get("V1", 0), sensor_data.get("V2", 0))
         readings.append({"sensorType": "vibration", "value": float(vib), "unit": "count"})
 
-    u_vals = [v for v in (sensor_data.get("U1"), sensor_data.get("U2")) if v and v > 0]
+    # Ultrasonic validation: rail-er normal distance ~10-40cm. Er baire
+    # (2cm er kom ba 100cm er beshi) mane sensor echo pachhe na — invalid,
+    # status flicker arokkam kore tai baddho ignore kora hoy.
+    u_vals = [v for v in (sensor_data.get("U1"), sensor_data.get("U2"))
+              if v is not None and 2 <= v <= 100]
     if u_vals:
         avg_u = sum(u_vals) / len(u_vals)
-        displacement_mm = round((avg_u - ULTRASONIC_NORMAL_CM) * 10, 1)  # cm deviation -> mm
-        readings.append({"sensorType": "ultrasonic", "value": displacement_mm, "unit": "mm"})
-
-    if "I1" in sensor_data or "I2" in sensor_data:
-        obstacle = 0 if (sensor_data.get("I1", 1) == 0 or sensor_data.get("I2", 1) == 0) else 1
-        readings.append({"sensorType": "ir_beam", "value": obstacle, "unit": "state"})
+        # Raw distance (cm) pathai — kachle kom, dure gele beshi
+        displacement_cm = round(avg_u, 1)
+        readings.append({"sensorType": "ultrasonic", "value": displacement_cm, "unit": "cm"})
 
     for r in readings:
-        try:
-            requests.post(f"{BACKEND_URL}/api/sensor-readings", json={
-                "deviceId": DEVICE_ID,
-                "trackId": TRACK_ID,
-                "recordedAt": now,
-                **r,
-            }, timeout=1)
-        except Exception:
-            pass
+        for track_id in TRACK_IDS:
+            try:
+                requests.post(f"{BACKEND_URL}/api/sensor-readings", json={
+                    "deviceId": DEVICE_ID,
+                    "trackId": track_id,
+                    "recordedAt": now,
+                    **r,
+                }, timeout=1)
+            except Exception:
+                pass
 
 
 # ==================== Main loop ====================
@@ -363,7 +388,7 @@ def main():
                                   raw_status, confirmed_status)
 
             # Send continuous telemetry to backend (vibration + displacement + ir)
-            threading.Thread(target=send_telemetry_to_backend, args=(sensor_data,), daemon=True).start()
+            threading.Thread(target=send_telemetry_to_backend, args=(sensor_data, cam_result), daemon=True).start()
 
             if confirmed_status != prev_confirmed and confirmed_status in ("WARNING", "EMERGENCY"):
                 threading.Thread(

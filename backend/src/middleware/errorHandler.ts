@@ -20,9 +20,10 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
     return
   }
 
-  const sqliteErr = err as { code?: string; message?: string }
-  if (typeof sqliteErr.code === 'string' && sqliteErr.code.startsWith('SQLITE_CONSTRAINT')) {
-    res.status(400).json({ error: `Invalid data: ${sqliteErr.message}` })
+  // Firestore constraint errors (failed preconditions / invalid arguments)
+  const fbErr = err as { code?: number; message?: string }
+  if (typeof fbErr.code === 'number' && [3, 9, 10].includes(fbErr.code)) {
+    res.status(400).json({ error: `Invalid data: ${fbErr.message}` })
     return
   }
 

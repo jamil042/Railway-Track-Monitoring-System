@@ -1,28 +1,28 @@
 import { Router } from 'express'
 import * as stations from '../services/stations.service.js'
-import { authenticate } from '../middleware/auth.js'
+import { authenticate, type AuthRequest, scopedStationId, requireAdmin } from '../middleware/auth.js'
 import { ApiError } from '../middleware/errorHandler.js'
 
 const router = Router()
 
-router.get('/', (_req, res) => {
-  res.json(stations.listStations())
+router.get('/', authenticate, async (req: AuthRequest, res) => {
+  res.json(await stations.listStations(scopedStationId(req)))
 })
 
-router.get('/:id', (req, res) => {
-  res.json(stations.getStation(String(req.params.id)))
+router.get('/:id', async (req, res) => {
+  res.json(await stations.getStation(String(req.params.id)))
 })
 
-router.post('/', authenticate, (req, res) => {
-  res.status(201).json(stations.createStation(req.body ?? {}))
+router.post('/', authenticate, requireAdmin, async (req, res) => {
+  res.status(201).json(await stations.createStation(req.body ?? {}))
 })
 
-router.put('/:id', authenticate, (req, res) => {
-  res.json(stations.updateStation(String(req.params.id), req.body ?? {}))
+router.put('/:id', authenticate, requireAdmin, async (req, res) => {
+  res.json(await stations.updateStation(String(req.params.id), req.body ?? {}))
 })
 
-router.delete('/:id', authenticate, (req, res) => {
-  stations.deleteStation(String(req.params.id))
+router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
+  await stations.deleteStation(String(req.params.id))
   res.status(204).end()
 })
 

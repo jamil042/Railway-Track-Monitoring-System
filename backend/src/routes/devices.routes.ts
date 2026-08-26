@@ -1,32 +1,32 @@
 import { Router } from 'express'
 import * as devices from '../services/devices.service.js'
-import { authenticate } from '../middleware/auth.js'
+import { authenticate, type AuthRequest, scopedStationId, requireAdmin } from '../middleware/auth.js'
 import { ApiError } from '../middleware/errorHandler.js'
 
 const router = Router()
 
-router.get('/', (_req, res) => {
-  res.json(devices.listDevices())
+router.get('/', authenticate, async (req: AuthRequest, res) => {
+  res.json(await devices.listDevices(scopedStationId(req)))
 })
 
-router.get('/:id', (req, res) => {
-  res.json(devices.getDevice(Number(req.params.id)))
+router.get('/:id', async (req, res) => {
+  res.json(await devices.getDevice(Number(req.params.id)))
 })
 
-router.post('/', authenticate, (req, res) => {
-  res.status(201).json(devices.createDevice(req.body ?? {}))
+router.post('/', authenticate, requireAdmin, async (req, res) => {
+  res.status(201).json(await devices.createDevice(req.body ?? {}))
 })
 
-router.put('/:id', authenticate, (req, res) => {
+router.put('/:id', authenticate, requireAdmin, async (req, res) => {
   const id = Number(req.params.id)
   if (!Number.isInteger(id)) throw new ApiError(400, 'Invalid device id')
-  res.json(devices.updateDevice(id, req.body ?? {}))
+  res.json(await devices.updateDevice(id, req.body ?? {}))
 })
 
-router.delete('/:id', authenticate, (req, res) => {
+router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
   const id = Number(req.params.id)
   if (!Number.isInteger(id)) throw new ApiError(400, 'Invalid device id')
-  devices.deleteDevice(id)
+  await devices.deleteDevice(id)
   res.status(204).end()
 })
 

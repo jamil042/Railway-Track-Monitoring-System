@@ -1,7 +1,7 @@
 # Railway Track Monitoring — Backend
 
 REST API for the AI-Assisted Smart Railway Track Monitoring and Early Warning
-System. Built with **Node.js + Express + TypeScript + SQLite (better-sqlite3)**.
+System. Built with **Node.js + Express + TypeScript + Firebase Firestore**.
 
 ## Quick start
 
@@ -11,16 +11,14 @@ npm install
 npm run dev        # starts on http://localhost:5000
 ```
 
-On first start the database (`data/railway.db`) is created from
-`src/db/schema.sql` and seeded with the same demo data the frontend's
-`src/data/mockData.ts` uses (stations, tracks, faults, maintenance, users,
-devices, telemetry, alerts). Log in with:
+On first start the app connects to Firestore and seeds it if empty
+(stations, tracks, users, devices). Log in with:
 
-| Username     | Password      | Role                  |
-| ------------ | ------------- | --------------------- |
-| `admin`      | `admin123`    | railway_administrator |
-| `incharge`   | `incharge123` | station_incharge      |
-| `maintenance`| `maint123`    | maintenance_team      |
+| Username / Station ID | Password   | Role                  |
+| --------------------- | ---------- | --------------------- |
+| `admin`               | `admin123` | railway_administrator |
+| `ST01`–`ST12`         | `12345`    | station_incharge      |
+| `ST01`–`ST12`         | `12345`    | maintenance_team      |
 
 To wipe and re-seed: `npm run seed`.
 
@@ -31,31 +29,29 @@ the UI can call the API with no extra configuration.
 
 ```
 src/
-├── server.ts               Entry point: initializes DB, seeds, starts HTTP server
+├── server.ts               Entry point: connects to Firestore, seeds, starts HTTP server
 ├── app.ts                  Express app: CORS, JSON parsing, route mounting, error handling
 ├── config/
-│   └── env.ts              Centralized configuration (PORT, DB_PATH, JWT_SECRET, ...)
+│   └── env.ts              Centralized configuration (PORT, FIREBASE_*, JWT_SECRET, ...)
 ├── db/
-│   ├── index.ts            SQLite connection + schema init (PRAGMA foreign_keys = ON)
-│   ├── schema.sql          Database schema (tables, indexes, views, triggers)
-│   └── seed.ts             Demo/seed data loader
+│   ├── index.ts            Firebase Admin SDK init + Firestore client + id counters
+│   └── seed.ts             Seed data loader
 ├── types/
 │   └── index.ts            Shared TypeScript types (mirrors frontend types)
 ├── middleware/
 │   ├── auth.ts             JWT verification for protected routes
-│   └── errorHandler.ts     Centralized ApiError + SQLite constraint handling
+│   └── errorHandler.ts     Centralized ApiError + Firestore error handling
 ├── routes/                 HTTP layer: define endpoints, call services, respond JSON
 │   └── index.ts            Mounts every resource router under /api
-└── services/               Data layer: SQL queries + business logic
+└── services/               Data layer: Firestore queries + business logic
 ```
 
-**Layering:** `routes` → `services` → `db`. Routes never touch SQL directly;
+**Layering:** `routes` → `services` → `db`. Routes never touch Firestore directly;
 services never touch HTTP. This keeps each layer small and testable.
 
 ## Data model
 
-9 tables (see `src/db/schema.sql` for full DDL with FK rules and CHECK
-constraints):
+9 Firestore collections (plus `_counters` for numeric id generation):
 
 - `stations`, `tracks` — infrastructure master data
 - `faults`, `maintenance_tasks`, `notifications`, `users` — fault domain
@@ -63,12 +59,13 @@ constraints):
 
 Key behaviors:
 
-- Foreign keys are enforced (`PRAGMA foreign_keys = ON`, per connection).
+- Numeric ids are allocated transactionally from `_counters` documents.
 - `tracks.temperature/vibration/displacement` are **cached latest readings**,
-  auto-refreshed by the `trg_track_latest_reading` trigger whenever a new
-  `sensor_readings` row is inserted. History stays in `sensor_readings`.
+  refreshed by the trigger logic in `sensorReadings.service.ts`
+  (`applyTrackTrigger`) whenever a new reading is ingested. History stays in
+  `sensor_readings`.
 - Aggregates (active fault counts, dashboard stats, chart datasets) are computed
-  in SQL views, never stored, so they can't go stale.
+  in `dashboard.service.ts`, never stored, so they can't go stale.
 
 ## API reference
 

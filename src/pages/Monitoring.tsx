@@ -4,9 +4,18 @@ import TrackCard from '../components/TrackCard';
 import SearchBar from '../components/SearchBar';
 import Pagination from '../components/Pagination';
 import type { TrackStatus } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 import { MdRadar, MdCheckCircle, MdWarning, MdDangerous } from 'react-icons/md';
 
 const PER_PAGE = 9;
+
+/** Ek page e ekmatro ekta live camera stream chole (prothonom hardware track). */
+function firstLiveId(tracks: { id: string }[]): string | undefined {
+  return tracks.find(t => {
+    const seq = parseInt(t.id.replace('TR-', ''), 10);
+    return Number.isFinite(seq) && seq % 5 === 1;
+  })?.id;
+}
 
 const STATUS_FILTERS: { label: string; value: TrackStatus | 'all'; icon: typeof MdCheckCircle; iconColor: string; bg: string; border: string }[] = [
   { label: 'All Tracks', value: 'all', icon: MdRadar, iconColor: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-200' },
@@ -16,38 +25,41 @@ const STATUS_FILTERS: { label: string; value: TrackStatus | 'all'; icon: typeof 
 ];
 
 export default function Monitoring() {
-  const { tracks, readings } = useData();
+  const { tracks, stations } = useData();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'railway_administrator';
 
-  // শুধু যে track-গুলোতে live sensor readings আছে সেগুলোই দেখাও (যেমন TR-001, TR-002)।
-  // বাকি placeholder/seed-only track cards এড়িয়ে যাও — array change না হলে ওগুলো কেবল জায়গা নেয়।
-  const liveTrackIds = useMemo(
-    () => new Set(readings.map(r => r.trackId).filter(Boolean)),
-    [readings],
-  );
-  const liveTracks = useMemo(() => tracks.filter(t => liveTrackIds.has(t.id)), [tracks, liveTrackIds]);
+  // Admin: station selector diye filter korte parbe. Non-admin ke backend
+  // already sudhu tar nijer station-er track pathay, tai extra filter lagbe na.
+  const [stationFilter, setStationFilter] = useState<string>('all');
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<TrackStatus | 'all'>('all');
   const [page, setPage] = useState(1);
 
+  const visibleTracks = useMemo(() => {
+    if (!isAdmin || stationFilter === 'all') return tracks;
+    return tracks.filter(t => t.stationId === stationFilter);
+  }, [tracks, isAdmin, stationFilter]);
+
   const filtered = useMemo(() => {
-    return liveTracks.filter(t => {
+    return visibleTracks.filter(t => {
       const matchSearch = search === '' ||
         t.id.toLowerCase().includes(search.toLowerCase()) ||
         t.stationName.toLowerCase().includes(search.toLowerCase());
       const matchStatus = statusFilter === 'all' || t.status === statusFilter;
       return matchSearch && matchStatus;
     });
-  }, [search, statusFilter, liveTracks]);
+  }, [search, statusFilter, visibleTracks]);
 
   const totalPages = Math.ceil(filtered.length / PER_PAGE);
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const counts = {
-    all: liveTracks.length,
-    safe: liveTracks.filter(t => t.status === 'safe').length,
-    warning: liveTracks.filter(t => t.status === 'warning').length,
-    critical: liveTracks.filter(t => t.status === 'critical').length,
+    all: visibleTracks.length,
+    safe: visibleTracks.filter(t => t.status === 'safe').length,
+    warning: visibleTracks.filter(t => t.status === 'warning').length,
+    critical: visibleTracks.filter(t => t.status === 'critical').length,
   };
 
   const handleFilterChange = (v: TrackStatus | 'all') => { setStatusFilter(v); setPage(1); };
@@ -55,11 +67,28 @@ export default function Monitoring() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Live Railway Monitoring</h1>
           <p className="text-slate-500 text-sm mt-0.5">Real-time track status across all Bangladesh Railway stations</p>
         </div>
+        {isAdmin && (
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Station</label>
+            <select
+              value={stationFilter}
+              onChange={e => { setStationFilter(e.target.value); setPage(1); }}
+              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+            >
+              <option value="all">All Stations ({tracks.length} tracks)</option>
+              {stations.map(s => (
+                <option key={s.id} value={s.id}>
+                  {s.id} — {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -102,7 +131,13 @@ export default function Monitoring() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {paged.map(t => <TrackCard key={t.id} track={t} />)}
+          {paged.map(t => (
+            <TrackCard
+              key={t.id}
+              track={t}
+              liveCam={t.id === firstLiveId(paged)}
+            />
+          ))}
         </div>
       )}
 

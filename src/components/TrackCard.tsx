@@ -7,6 +7,8 @@ import { useData } from '../contexts/DataContext';
 
 interface TrackCardProps {
   track: Track;
+  /** Ek somoy matro ekta card MJPEG stream chalay (lag rokkhar jonno). */
+  liveCam?: boolean;
 }
 
 // track.id / SensorReading.trackId মিলিয়ে, sensorType অনুযায়ী সবচেয়ে সাম্প্রতিক
@@ -22,7 +24,7 @@ function latestValue(readings: SensorReading[], trackId: string, sensorType: str
   return latest.value;
 }
 
-export default function TrackCard({ track }: TrackCardProps) {
+export default function TrackCard({ track, liveCam = true }: TrackCardProps) {
   const { readings } = useData();
   const [expanded, setExpanded] = useState(false);
 
@@ -46,13 +48,19 @@ export default function TrackCard({ track }: TrackCardProps) {
   const objectDetected = liveObjectState === 0;
   const objectLabel = liveObjectState === null ? '—' : objectDetected ? 'OBSTACLE' : 'CLEAR';
 
+  // Live camera stream shudhu hardware-instrumented track gulo te dekhai —
+  // prottek station er prothonom track (TR-001, TR-006, TR-011, ...).
+  // Protita card e MJPEG stream khulle browser/camera server duto-i lag kore.
+  const seq = parseInt(track.id.replace('TR-', ''), 10);
+  const isLiveCamTrack = liveCam !== false && Number.isFinite(seq) && seq % 5 === 1;
+
   return (
     <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden hover:shadow-md hover:border-slate-300 transition-all duration-200 group">
       <div className="relative h-36 bg-black overflow-hidden">
         <img
-          src={CAMERA_STREAM_URL}
+          src={isLiveCamTrack ? CAMERA_STREAM_URL : track.imageUrl}
           alt={`Track ${track.id} live camera (YOLO detection)`}
-          className="w-full h-full object-cover"
+          className={`w-full h-full ${isLiveCamTrack ? 'object-cover' : 'object-cover opacity-90'}`}
           onError={(e) => {
             // camera_stream.py bondho thakle track-er placeholder snapshot dekhao
             (e.target as HTMLImageElement).src = track.imageUrl;
@@ -62,18 +70,22 @@ export default function TrackCard({ track }: TrackCardProps) {
         <div className="absolute top-2.5 left-2.5">
           <StatusBadge status={track.status} />
         </div>
-        <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded-md">
-          <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
-          <span className="text-xs text-white font-mono">LIVE CAM</span>
-        </div>
+        {isLiveCamTrack && (
+          <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded-md">
+            <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+            <span className="text-xs text-white font-mono">LIVE CAM</span>
+          </div>
+        )}
         {/* Boro kore dekhar button — click korle fullscreen modal-e stream dekhabe */}
-        <button
-          onClick={() => setExpanded(true)}
-          title="View full screen"
-          className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5 bg-black/60 hover:bg-blue-600 backdrop-blur-sm px-2.5 py-1 rounded-md text-white text-xs font-medium transition-all"
-        >
-          <MdFullscreen className="text-base" /> Expand
-        </button>
+        {isLiveCamTrack && (
+          <button
+            onClick={() => setExpanded(true)}
+            title="View full screen"
+            className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5 bg-black/60 hover:bg-blue-600 backdrop-blur-sm px-2.5 py-1 rounded-md text-white text-xs font-medium transition-all"
+          >
+            <MdFullscreen className="text-base" /> Expand
+          </button>
+        )}
       </div>
 
       <div className="p-4">
@@ -103,8 +115,8 @@ export default function TrackCard({ track }: TrackCardProps) {
           </div>
           <div className="bg-blue-50 border border-blue-100 rounded-lg p-2 text-center">
             <div className="flex items-center justify-center text-blue-500 mb-0.5"><MdSensors className="text-sm" /></div>
-            <p className="text-xs font-semibold text-slate-800">{displacementDisplay}mm</p>
-            <p className="text-[10px] text-slate-400">Disp.</p>
+            <p className="text-xs font-semibold text-slate-800">{displacementDisplay != null ? `${displacementDisplay}cm` : '—'}</p>
+            <p className="text-[10px] text-slate-400">Distance</p>
           </div>
         </div>
 

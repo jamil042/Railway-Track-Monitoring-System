@@ -96,6 +96,12 @@ class YOLODetector:
     def __init__(self, model_path: str = MODEL_PATH, conf: float = CONF_THRESHOLD):
         print(f"[YOLO] Loading model: {model_path}")
         self.model = YOLO(model_path)
+        try:
+            import torch
+            # Pi er 4 core e streaming/encode ke jagh rakhte 2 thread e inference
+            torch.set_num_threads(2)
+        except Exception:
+            pass
         self.conf = conf
         # predict() কে সবচেয়ে কম per-class threshold দিয়ে চালানো হবে, তারপর প্রতিটা
         # box কে তার নিজের class threshold দিয়ে আলাদাভাবে ফিল্টার করা হবে (নিচে দেখো)
@@ -137,7 +143,8 @@ class YOLODetector:
     # ---------------- Inference + scoring ----------------
     def detect(self, frame) -> DetectionResult:
         result = DetectionResult(timestamp=time.time())
-        preds = self.model.predict(frame, conf=self._predict_conf, verbose=False)[0]
+        # imgsz=320: Pi CPU te inference ~3x faster, accuracy minor kome
+        preds = self.model.predict(frame, conf=self._predict_conf, verbose=False, imgsz=320)[0]
 
         fastener_count = 0
         worst_score = 0.0

@@ -1,0 +1,24 @@
+# RailGuard — Python dependencies
+# Install:  python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+#
+# Used by:
+#   hardware/camera_stream.py          — Flask MJPEG live camera server (port 8082)
+#   hardware/yolo_detector.py          — YOLOv8 railway fault detection (needs the .pt model)
+#   hardware/sensor_fusion_dashboard.py— ESP32 serial + camera detection fusion -> backend telemetry
+#   hardware/track_simulator.py        — per-track simulated sensor data every 1.5 s
+#   hardware/iot_ingest.py             — standalone sensor ingest helper
+
+# Web server for the camera stream / detection endpoints
+flask>=3.0
+
+# Camera capture + image processing (headless build works on servers/Pi without a display)
+opencv-python-headless>=4.9
+
+# YOLOv8 object/fault detection runtime (pulls in torch + torchvision)
+ultralytics>=8.2
+
+# HTTP client used to POST telemetry/readings to the backend API
+requests>=2.31
+
+# ESP32 serial communication (sensor_fusion_dashboard / iot_ingest)
+pyserial>=3.5

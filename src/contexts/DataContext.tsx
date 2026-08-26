@@ -71,7 +71,7 @@ const DataContext = createContext<DataContextValue | null>(null);
 
 const TYPE_COLORS = ['#DC2626', '#F59E0B', '#EF4444', '#3B82F6', '#8B5CF6', '#6B7280'];
 
-const LIVE_POLL_INTERVAL_MS = 3000;
+const LIVE_POLL_INTERVAL_MS = 1500;
 
 const shortName = (full: string) => full.split(' ')[0];
 
@@ -133,7 +133,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         maintenanceApi.list(),
         notificationsApi.list(),
         devicesApi.list(),
-        sensorReadingsApi.list({ limit: 100 }),
+        sensorReadingsApi.list({ limit: 150 }),
         alertsApi.list(),
       ]);
 
@@ -161,11 +161,34 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     refresh();
 
-    const interval = setInterval(() => {
-      refresh(true);
+    // Live poll: shudhu lightweight data (tracks + readings) proti 1.5s e.
+    // Baki heavy endpoints (dashboard stats, faults, ...) 15s e — nahole
+    // proti poll e 13 ta request render lag toiri kore.
+    const liveInterval = setInterval(async () => {
+      try {
+        const [tracksRes, readingsRes, alertsRes, faultsRes] = await Promise.all([
+          tracksApi.list(),
+          sensorReadingsApi.list({ limit: 150 }),
+          alertsApi.list(),
+          faultsApi.list(),
+        ]);
+        setTracks(tracksRes);
+        setReadings(readingsRes);
+        setAlerts(alertsRes);
+        setFaults(faultsRes);
+      } catch {
+        /* silent — next poll e abar try korbe */
+      }
     }, LIVE_POLL_INTERVAL_MS);
 
-    return () => clearInterval(interval);
+    const slowInterval = setInterval(() => {
+      refresh(true);
+    }, 15000);
+
+    return () => {
+      clearInterval(liveInterval);
+      clearInterval(slowInterval);
+    };
   }, [refresh]);
 
   const updateTask = async (id: string, data: Partial<MaintenanceTask>) => {

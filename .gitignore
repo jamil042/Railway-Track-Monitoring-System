@@ -18,3 +18,7 @@ __pycache__/
 *.pyc
 # Pi local backup
 Pi-backup/
+
+# Firebase service account key
+backend/raileway-track-monitoring-firebase-adminsdk-fbsvc-a523b1debb.json
+*.env
